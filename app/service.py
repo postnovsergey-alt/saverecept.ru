@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Image, Ingredient, Recipe, Step, User
-from app.parser.pipeline import ParsedRecipe, parse_url
+from app.parser.pipeline import ParsedRecipe, parse_image, parse_url
 from app.utils import slugify, url_key
 
 
@@ -67,6 +67,7 @@ def save_parsed(
             position=i, filename=img["filename"], thumb_filename=img["thumb_filename"],
             width=img["width"], height=img["height"], bytes=img["bytes"],
             source_url=img.get("source_url", ""),
+            is_source=bool(img.get("is_source", False)),
         ))
     db.add(recipe)
     db.commit()
@@ -83,6 +84,20 @@ def add_from_url(
     if existing:
         return existing, False
     parsed = parse_url(url)
+    return save_parsed(db, owner, parsed, added_from=added_from, added_by=added_by), True
+
+
+def add_from_image(
+    db: Session, owner: User, image_bytes: bytes, mime_type: str = "image/jpeg",
+    added_from: str = "web", added_by: str = "",
+) -> tuple[Recipe, bool]:
+    """Разбор фото → рецепт. Повторная загрузка того же файла дубля не создаёт
+    (source_key = хэш байт)."""
+    parsed = parse_image(image_bytes, mime_type)
+    existing = db.scalar(select(Recipe).where(
+        Recipe.owner_id == owner.id, Recipe.source_key == parsed.source_key))
+    if existing:
+        return existing, False
     return save_parsed(db, owner, parsed, added_from=added_from, added_by=added_by), True
 
 

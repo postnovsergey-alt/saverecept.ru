@@ -4,8 +4,8 @@
 {% block content %}
 <section class="add-page">
   <h1>Добавить рецепт</h1>
-  <p class="lede">Вставьте ссылку на страницу с рецептом. Остальное — название, продукты, шаги,
-     фотографию и категорию — заберём сами.</p>
+  <p class="lede">Вставьте ссылку на страницу с рецептом — или пришлите фото
+     страницы книги. Остальное — название, продукты, шаги и категорию — заберём сами.</p>
 
   <form class="add-form" id="add-form" method="post" action="/add">
     <input type="url" id="url" name="url" value="{{ prefill|default('') }}"
@@ -13,6 +13,14 @@
            {% if not prefill %}autofocus{% endif %}>
     <button class="btn btn-primary btn-lg" type="submit" id="submit-btn">Разобрать</button>
   </form>
+
+  <div class="add-divider">или</div>
+
+  <label class="photo-drop" for="photo" id="photo-drop">
+    <span id="photo-label">Прочитать рецепт с фото</span>
+    <span class="muted small">Страница книги, скриншот, фотография — тут же начнём разбор.</span>
+    <input type="file" id="photo" name="photo" accept="image/*" capture="environment">
+  </label>
 
   <div id="status" class="status" hidden>
     <div class="spinner" aria-hidden="true"></div>
@@ -24,9 +32,9 @@
   <div class="tips">
     <h2>Что происходит дальше</h2>
     <ol>
-      <li>Ищем на странице разметку рецепта — так устроено большинство кулинарных сайтов.</li>
-      <li>Если разметки нет, разбираем текст по заголовкам «Ингредиенты» и «Приготовление».</li>
-      <li>Скачиваем фотографию, ужимаем её в WebP — вместо пары мегабайт получается около сотни килобайт.</li>
+      <li>Для ссылки — ищем разметку рецепта; если её нет, разбираем текст по заголовкам «Ингредиенты» и «Приготовление».</li>
+      <li>Для фото — читаем текст с картинки через LLM. Работает и с печатными страницами, и (похуже) с рукописью.</li>
+      <li>Картинку ужимаем в WebP — вместо пары мегабайт получается около сотни килобайт.</li>
       <li>Определяем категорию по названию и составу и кладём рецепт на нужную полку.</li>
     </ol>
     <p class="muted small">Ссылка на источник сохраняется — всегда можно вернуться к оригиналу.</p>
@@ -37,51 +45,88 @@
 {% block scripts %}
 <script>
 const form = document.getElementById('add-form');
+const photoInput = document.getElementById('photo');
+const photoLabel = document.getElementById('photo-label');
+const photoDrop = document.getElementById('photo-drop');
 const box = document.getElementById('status');
 const titleEl = document.getElementById('status-title');
 const noteEl = document.getElementById('status-note');
 const btn = document.getElementById('submit-btn');
-const phrases = ['Читаем страницу…', 'Ищем ингредиенты…', 'Забираем фотографию…', 'Раскладываем по полкам…'];
+const urlPhrases = ['Читаем страницу…', 'Ищем ингредиенты…', 'Забираем фотографию…', 'Раскладываем по полкам…'];
+const photoPhrases = ['Отправляем фото модели…', 'Разбираем текст с картинки…', 'Собираем ингредиенты…', 'Раскладываем по полкам…'];
 let timer;
+
+function startStatus(phrases, disable) {
+  box.hidden = false;
+  box.className = 'status';
+  disable.forEach(el => el.disabled = true);
+  let i = 0;
+  titleEl.textContent = phrases[0];
+  noteEl.textContent = '';
+  timer = setInterval(() => { i = (i + 1) % phrases.length; titleEl.textContent = phrases[i]; }, 2200);
+}
+
+async function readResponse(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch { return {ok: false, error: `Сервер вернул ${res.status}: ${text.slice(0, 200) || '(пусто)'}`}; }
+}
+
+function finishStatus(data, disable) {
+  clearInterval(timer);
+  if (data && data.ok) {
+    box.className = 'status status-ok';
+    titleEl.textContent = data.created ? 'Готово: ' + data.title : 'Уже был в книге: ' + data.title;
+    noteEl.textContent = 'Категория: ' + data.category;
+    location.href = data.url;
+  } else {
+    box.className = 'status status-error';
+    titleEl.textContent = 'Не получилось';
+    noteEl.textContent = (data && data.error) || 'Неизвестная ошибка';
+    disable.forEach(el => el.disabled = false);
+  }
+}
+
+function failStatus(err, disable) {
+  clearInterval(timer);
+  box.className = 'status status-error';
+  titleEl.textContent = 'Сеть подвела';
+  noteEl.textContent = String(err && err.message || err);
+  disable.forEach(el => el.disabled = false);
+}
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const url = document.getElementById('url').value.trim();
   if (!url) return;
-
-  box.hidden = false;
-  box.className = 'status';
-  btn.disabled = true;
-  let i = 0;
-  titleEl.textContent = phrases[0];
-  noteEl.textContent = '';
-  timer = setInterval(() => { i = (i + 1) % phrases.length; titleEl.textContent = phrases[i]; }, 2200);
-
+  startStatus(urlPhrases, [btn, photoInput]);
   try {
     const res = await fetch('/api/add', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({url})
     });
-    const data = await res.json();
-    clearInterval(timer);
-    if (data.ok) {
-      box.className = 'status status-ok';
-      titleEl.textContent = data.created ? 'Готово: ' + data.title : 'Уже был в книге: ' + data.title;
-      noteEl.textContent = 'Категория: ' + data.category;
-      location.href = data.url;
-    } else {
-      box.className = 'status status-error';
-      titleEl.textContent = 'Не получилось';
-      noteEl.textContent = data.error || 'Неизвестная ошибка';
-      btn.disabled = false;
-    }
+    finishStatus(await readResponse(res), [btn, photoInput]);
   } catch (err) {
-    clearInterval(timer);
-    box.className = 'status status-error';
-    titleEl.textContent = 'Сеть подвела';
-    noteEl.textContent = String(err);
-    btn.disabled = false;
+    failStatus(err, [btn, photoInput]);
+  }
+});
+
+photoInput.addEventListener('change', async () => {
+  const file = photoInput.files[0];
+  if (!file) return;
+  photoLabel.textContent = file.name;
+  photoDrop.classList.add('busy');
+  const fd = new FormData();
+  fd.append('photo', file);
+  startStatus(photoPhrases, [btn, photoInput]);
+  try {
+    const res = await fetch('/api/add_photo', {method: 'POST', body: fd});
+    finishStatus(await readResponse(res), [btn, photoInput]);
+  } catch (err) {
+    failStatus(err, [btn, photoInput]);
+  } finally {
+    photoDrop.classList.remove('busy');
   }
 });
 

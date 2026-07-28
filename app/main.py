@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -283,6 +284,37 @@ def add_submit(
     return RedirectResponse(f"/r/{recipe.slug}", status_code=303)
 
 
+MAX_PHOTO_BYTES = 20_000_000
+
+
+@app.post("/api/add_photo")
+async def api_add_photo(
+    photo: UploadFile = File(...),
+    user: User = Depends(current_user), db: Session = Depends(get_session),
+):
+    data = await photo.read()
+    if not data:
+        return JSONResponse({"ok": False, "error": "Файл пустой"}, status_code=400)
+    if len(data) > MAX_PHOTO_BYTES:
+        return JSONResponse({"ok": False, "error": "Фото больше 20 МБ"}, status_code=413)
+    mime = photo.content_type or "image/jpeg"
+    try:
+        recipe, created = await run_in_threadpool(
+            service.add_from_image, db, user, data, mime,
+            "web", user.display_name or user.email,
+        )
+    except ParseError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=422)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Не смогли разобрать фото")
+        return JSONResponse({"ok": False, "error": f"Внутренняя ошибка: {e}"},
+                            status_code=500)
+    return {
+        "ok": True, "created": created, "slug": recipe.slug, "title": recipe.title,
+        "category": category_title(recipe.category), "url": f"/r/{recipe.slug}",
+    }
+
+
 # ---------------------------------------------------------------- правки
 
 @app.post("/r/{slug}/category")
@@ -307,6 +339,19 @@ def favorite(
         raise HTTPException(404)
     service.toggle_favorite(db, recipe)
     return RedirectResponse(f"/r/{slug}", status_code=303)
+
+
+@app.post("/api/r/{slug}/favorite")
+def api_favorite(
+    slug: str,
+    user: User = Depends(current_user), db: Session = Depends(get_session),
+):
+    """AJAX-тумблер для карточек в списке — без перезагрузки страницы."""
+    recipe = service.get_by_slug(db, user.id, slug)
+    if not recipe:
+        return JSONResponse({"ok": False, "error": "Рецепт не найден"}, status_code=404)
+    is_favorite = service.toggle_favorite(db, recipe)
+    return {"ok": True, "is_favorite": is_favorite}
 
 
 @app.post("/r/{slug}/delete")
@@ -348,19 +393,33 @@ def manifest():
 @app.get("/sw.js")
 def service_worker():
     js = """
-const CACHE = 'samobranka-v2';
+const CACHE = 'samobranka-v3';
 self.addEventListener('install', e => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', e => e.waitUntil(
+  caches.keys().then(names => Promise.all(
+    names.filter(n => n !== CACHE).map(n => caches.delete(n))
+  )).then(() => self.clients.claim())
+));
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
-  if (url.pathname.startsWith('/media/') || url.pathname.startsWith('/static/')) {
+  // /media/ — cache-first (имя = хэш, старой версии не бывает)
+  if (url.pathname.startsWith('/media/')) {
     event.respondWith(
       caches.open(CACHE).then(cache =>
         cache.match(event.request).then(hit =>
           hit || fetch(event.request).then(resp => { cache.put(event.request, resp.clone()); return resp; })
         )
       )
+    );
+    return;
+  }
+  // /static/ — network-first, чтобы правки CSS/иконок доезжали сразу
+  if (url.pathname.startsWith('/static/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(resp => { caches.open(CACHE).then(c => c.put(event.request, resp.clone())); return resp; })
+        .catch(() => caches.match(event.request))
     );
   }
 });

@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import re
@@ -55,6 +56,29 @@ PROMPT = """Из текста страницы извлеки рецепт. Ве
 {text}
 ---"""
 
+IMAGE_PROMPT = """На фото рецепт: страница книги/журнала, скриншот, распечатка
+или рукописная запись. Прочитай его и верни JSON:
+
+{{
+  "is_recipe": true/false,
+  "title": "название блюда",
+  "description": "1-2 предложения, можно пустую строку",
+  "ingredients": ["500 г куриного филе", "2 ст. л. оливкового масла"],
+  "steps": ["шаг 1", "шаг 2"],
+  "total_minutes": 45,
+  "servings": "4 порции",
+  "category": "один слаг из списка"
+}}
+
+Категории: {categories}
+
+Правила:
+- ингредиенты записывай строкой с количеством, ровно как в тексте;
+- шаги — связные предложения, без нумерации в начале;
+- ничего не выдумывай: чего нет на фото, оставляй пустым;
+- если на фото не рецепт (готовое блюдо без описания, посторонняя картинка) —
+  верни is_recipe: false."""
+
 
 def llm_enabled() -> bool:
     return bool(LLM_PROVIDERS)
@@ -75,13 +99,10 @@ def _extract_json(content: str) -> dict | None:
     return None
 
 
-def _call(provider: dict, text: str, timeout: float) -> str:
+def _post(provider: dict, messages: list[dict], timeout: float) -> str:
     payload = {
         "model": provider["model"],
-        "messages": [
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": PROMPT.format(categories=_CATEGORY_LIST, text=text)},
-        ],
+        "messages": messages,
         "temperature": 0.1,
         "max_tokens": 3000,
     }
@@ -96,6 +117,24 @@ def _call(provider: dict, text: str, timeout: float) -> str:
             raise RuntimeError("лимит запросов исчерпан")
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"]
+
+
+def _call(provider: dict, text: str, timeout: float) -> str:
+    return _post(provider, [
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content": PROMPT.format(categories=_CATEGORY_LIST, text=text)},
+    ], timeout)
+
+
+def _call_image(provider: dict, data_url: str, timeout: float) -> str:
+    return _post(provider, [
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content": [
+            {"type": "text",
+             "text": IMAGE_PROMPT.format(categories=_CATEGORY_LIST)},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]},
+    ], timeout)
 
 
 def _normalize(data: dict) -> dict | None:
@@ -141,6 +180,34 @@ def extract_with_llm(text: str, timeout: float = 60.0) -> dict | None:
             log.info("LLM %s разобрал страницу за %.1f с", provider["name"], took)
             return result
         log.warning("LLM %s вернул ответ, из которого рецепт не собрался", provider["name"])
+    return None
+
+
+def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg",
+                       timeout: float = 90.0) -> dict | None:
+    if not LLM_PROVIDERS or not image_bytes:
+        return None
+    if mime_type not in ("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"):
+        mime_type = "image/jpeg"
+    data_url = f"data:{mime_type};base64,{base64.b64encode(image_bytes).decode('ascii')}"
+
+    for provider in LLM_PROVIDERS:
+        started = time.monotonic()
+        try:
+            content = _call_image(provider, data_url, timeout)
+        except Exception as e:  # noqa: BLE001
+            log.warning("LLM %s (%s) не ответил на фото: %s",
+                        provider["name"], provider["model"], e)
+            continue
+
+        result = _normalize(_extract_json(content) or {})
+        took = time.monotonic() - started
+        if result:
+            result["method"] = "llm-image"
+            log.info("LLM %s разобрал фото за %.1f с", provider["name"], took)
+            return result
+        log.warning("LLM %s вернул по фото ответ, из которого рецепт не собрался",
+                    provider["name"])
     return None
 
 

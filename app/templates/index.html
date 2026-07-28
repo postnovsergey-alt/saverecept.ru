@@ -56,11 +56,28 @@
   <div class="grid">
     {% for r in recipes %}{{ card(r) }}{% endfor %}
   </div>
+{% elif q %}
+  <div class="empty">
+    <p class="empty-title">Ничего не нашлось</p>
+    <p>Попробуйте другое слово — поиск идёт и по названию, и по продуктам.</p>
+  </div>
+{% elif fav %}
+  <div class="empty">
+    <p class="empty-title">Пока нет избранных рецептов</p>
+    <p>Откройте карточку в книге и нажмите ☆ — рецепт появится здесь.</p>
+    <a class="btn btn-primary" href="/">К моим рецептам</a>
+  </div>
+{% elif active_category %}
+  <div class="empty">
+    <p class="empty-title">На этой полке пусто</p>
+    <p>Рецепт этой категории пока не добавляли.</p>
+    <a class="btn btn-ghost" href="/">Посмотреть все</a>
+  </div>
 {% else %}
   <div class="empty">
-    <p class="empty-title">{% if q %}Ничего не нашлось{% else %}Книга пока пустая{% endif %}</p>
-    <p>{% if q %}Попробуйте другое слово — поиск идёт и по названию, и по продуктам.{% else %}Добавьте первый рецепт — вставьте ссылку с любого кулинарного сайта.{% endif %}</p>
-    {% if not q %}<a class="btn btn-primary" href="/add">Добавить рецепт</a>{% endif %}
+    <p class="empty-title">Книга пока пустая</p>
+    <p>Добавьте первый рецепт — вставьте ссылку с любого кулинарного сайта или пришлите фото.</p>
+    <a class="btn btn-primary" href="/add">Добавить рецепт</a>
   </div>
 {% endif %}
 

@@ -1,7 +1,11 @@
-from sqlalchemy import create_engine, event
+import logging
+
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app.config import DATABASE_URL
+
+log = logging.getLogger(__name__)
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True, future=True)
@@ -34,7 +38,25 @@ def get_session():
         db.close()
 
 
+def _ensure_column(table: str, column: str, ddl_type: str) -> None:
+    """Мини-миграция «на месте»: добавляет колонку, если её ещё нет.
+
+    Обходимся без Alembic: приложение маленькое, а колонок за всю жизнь
+    добавлено штук пять. Работает и для SQLite, и для Postgres — оба
+    понимают `ALTER TABLE ... ADD COLUMN ... DEFAULT ...`.
+    """
+    inspector = inspect(engine)
+    if table not in inspector.get_table_names():
+        return
+    if column in {c["name"] for c in inspector.get_columns(table)}:
+        return
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}"))
+    log.info("миграция: %s.%s добавлено", table, column)
+
+
 def init_db():
     from app import models  # noqa: F401  — регистрация моделей
 
     models.Base.metadata.create_all(engine)
+    _ensure_column("images", "is_source", "BOOLEAN NOT NULL DEFAULT FALSE")

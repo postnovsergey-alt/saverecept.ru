@@ -14,25 +14,32 @@
 {% endmacro %}
 
 {% macro card(recipe) %}
-<a class="card" href="/r/{{ recipe.slug }}">
-  <div class="card-media">
-    {% if recipe.cover %}
-      <img class="card-img" src="/media/{{ recipe.cover.thumb_filename }}" alt=""
-           loading="lazy" decoding="async" width="480" height="640">
-    {% else %}
-      {{ placeholder(recipe) }}
-    {% endif %}
-    <span class="card-scrim"></span>
-  </div>
-  <span class="chip">{{ category_title(recipe.category) }}</span>
-  {% if recipe.is_favorite %}<span class="chip chip-fav" title="В избранном">★</span>{% endif %}
-  <div class="card-body">
-    <h3 class="card-title">{{ recipe.title }}</h3>
-    <div class="card-meta">
-      {% if recipe.time_label %}<span>{{ recipe.time_label }}</span>{% endif %}
-      {% if recipe.ingredients %}<span>{{ recipe.ingredients|length }} ингр.</span>{% endif %}
-      {% if recipe.source_domain %}<span class="src">{{ recipe.source_domain }}</span>{% endif %}
+<div class="card">
+  <a class="card-link" href="/r/{{ recipe.slug }}">
+    <div class="card-media">
+      {% if recipe.cover %}
+        <img class="card-img" src="/media/{{ recipe.cover.thumb_filename }}" alt=""
+             loading="lazy" decoding="async" width="480" height="640">
+      {% else %}
+        {{ placeholder(recipe) }}
+      {% endif %}
+      <span class="card-scrim"></span>
     </div>
-  </div>
-</a>
+    <span class="chip">{{ category_title(recipe.category) }}</span>
+    <div class="card-body">
+      <h3 class="card-title">{{ recipe.title }}</h3>
+      <div class="card-meta">
+        {% if recipe.time_label %}<span>{{ recipe.time_label }}</span>{% endif %}
+        {% if recipe.ingredients %}<span>{{ recipe.ingredients|length }} ингр.</span>{% endif %}
+        {% if recipe.source_domain %}<span class="src">{{ recipe.source_domain }}</span>{% endif %}
+      </div>
+    </div>
+  </a>
+  <button type="button" class="fav-btn {{ 'is-on' if recipe.is_favorite else '' }}"
+          data-slug="{{ recipe.slug }}"
+          aria-pressed="{{ 'true' if recipe.is_favorite else 'false' }}"
+          aria-label="{{ 'Убрать из избранного' if recipe.is_favorite else 'В избранное' }}">
+    <span aria-hidden="true">{{ '★' if recipe.is_favorite else '☆' }}</span>
+  </button>
+</div>
 {% endmacro %}

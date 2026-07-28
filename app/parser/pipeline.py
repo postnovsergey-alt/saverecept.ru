@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 
@@ -14,9 +15,9 @@ from bs4 import BeautifulSoup
 from app.parser import extract
 from app.parser.classify import classify
 from app.parser.fetch import FetchError, fetch_html
-from app.parser.images import download_and_process
+from app.parser.images import download_and_process, process_image_bytes
 from app.parser.ingredients import parse_ingredient_line
-from app.parser.llm import extract_with_llm
+from app.parser.llm import extract_from_image, extract_with_llm, llm_enabled
 from app.utils import domain_of, normalize_url, url_key
 
 log = logging.getLogger(__name__)
@@ -175,3 +176,62 @@ def parse_url(url: str, download_images: bool = True, use_llm: bool = True) -> P
     elif not download_images:
         recipe.images = []
     return recipe
+
+
+def parse_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> ParsedRecipe:
+    """Разбор рецепта по одной фотографии (страница книги, скриншот и т.п.).
+
+    Работает только если настроен LLM с поддержкой vision — другого способа
+    прочитать текст с картинки в пайплайне нет. Дедупликация повторной
+    загрузки того же файла — по хэшу байт (используется как source_key).
+    """
+    if not image_bytes:
+        raise ParseError("Пустой файл")
+    if not llm_enabled():
+        raise ParseError(
+            "Разбор фото требует настроенного LLM. Заполните LLM_API_KEY в .env."
+        )
+
+    raw = extract_from_image(image_bytes, mime_type)
+    if not raw:
+        raise ParseError(
+            "По фото не удалось прочитать рецепт. Попробуйте более чёткий снимок "
+            "или снимите текст без сильных бликов."
+        )
+
+    title = (raw.get("title") or "").strip() or "Рецепт без названия"
+    ingredients = [parse_ingredient_line(x) for x in (raw.get("ingredients") or [])]
+    ingredients = [i for i in ingredients if i["name"]]
+    steps = [s for s in (raw.get("steps") or []) if s and len(s) > 2]
+
+    category, confidence = classify(
+        title=title,
+        description=raw.get("description", ""),
+        ingredients=[i["raw"] for i in ingredients],
+        steps=steps,
+        site_category="",
+        llm_category=raw.get("llm_category", ""),
+    )
+
+    digest = hashlib.sha256(image_bytes).hexdigest()
+    saved = process_image_bytes(image_bytes, source_url="")
+    if saved:
+        saved["is_source"] = True
+    images = [saved] if saved else []
+
+    return ParsedRecipe(
+        title=title[:400],
+        description=(raw.get("description") or "")[:1500],
+        ingredients=ingredients,
+        steps=steps,
+        images=images,
+        total_minutes=int(raw.get("total_minutes") or 0),
+        servings=(raw.get("servings") or "")[:60],
+        category=category,
+        category_confidence=confidence,
+        source_url=f"photo://{digest[:20]}",
+        source_key=f"photo:{digest[:32]}",
+        source_domain="фото",
+        source_title="",
+        parse_method="llm-image",
+    )

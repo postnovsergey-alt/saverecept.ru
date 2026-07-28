@@ -10,9 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.parser import llm as llm_module           # noqa: E402
 from app.parser.classify import classify           # noqa: E402
 from app.parser.ingredients import format_amount, parse_ingredient_line  # noqa: E402
-from app.parser.pipeline import parse_html         # noqa: E402
+from app.parser.pipeline import parse_html, parse_image, ParseError  # noqa: E402
 from app.utils import normalize_url, slugify, url_key  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -130,6 +131,65 @@ def test_ingredient_parser():
     check(parse_ingredient_line("Соль по вкусу")["note"] == "по вкусу", "«по вкусу»")
 
 
+def test_parse_image():
+    print("\n[7] parse_image: LLM-vision путь и дедуп по хэшу")
+    import io
+    from PIL import Image as PILImage
+
+    buf = io.BytesIO()
+    PILImage.new("RGB", (400, 300), (220, 200, 180)).save(buf, "JPEG")
+    fake_photo = buf.getvalue()
+
+    calls = {"n": 0}
+
+    def fake_extract(image_bytes, mime_type="image/jpeg"):
+        calls["n"] += 1
+        return {
+            "title": "Оладьи на кефире",
+            "description": "Пышные, из бабушкиной книги.",
+            "ingredients": ["Кефир — 500 мл", "Мука — 2 стакана", "Яйцо — 1 шт", "Сахар — 2 ст. л."],
+            "steps": ["Смешать сухие ингредиенты.", "Влить кефир и яйцо.", "Жарить с двух сторон."],
+            "images": [],
+            "total_minutes": 25,
+            "servings": "4 порции",
+            "site_category": "",
+            "llm_category": "breakfast",
+            "method": "llm-image",
+        }
+
+    original = llm_module.LLM_PROVIDERS
+    llm_module.LLM_PROVIDERS = [{"name": "test", "base_url": "x", "api_key": "x", "model": "x"}]
+    from app.parser import pipeline as pipeline_module
+    original_extract = pipeline_module.extract_from_image
+    pipeline_module.extract_from_image = fake_extract
+    try:
+        r = parse_image(fake_photo, "image/jpeg")
+        check(r.title == "Оладьи на кефире", "название взято из LLM", r.title)
+        check(len(r.ingredients) == 4, "4 ингредиента", len(r.ingredients))
+        check(len(r.steps) == 3, "3 шага", len(r.steps))
+        check(r.category == "breakfast", "категория из llm_category", r.category)
+        check(r.parse_method == "llm-image", "метод помечен как llm-image", r.parse_method)
+        check(r.source_domain == "фото", "домен = 'фото'", r.source_domain)
+        check(r.source_key.startswith("photo:"), "source_key с префиксом photo:", r.source_key)
+        check(len(r.images) == 1, "исходное фото сохранено", len(r.images))
+        check(r.images[0]["filename"].endswith(".webp"), "картинка ужата в webp",
+              r.images[0]["filename"])
+        check(r.images[0].get("is_source") is True,
+              "фото помечено как source (в обложку не пойдёт)", r.images[0].get("is_source"))
+
+        r2 = parse_image(fake_photo, "image/jpeg")
+        check(r2.source_key == r.source_key, "тот же файл -> тот же source_key")
+
+        try:
+            parse_image(b"", "image/jpeg")
+            check(False, "пустые байты -> ParseError")
+        except ParseError:
+            check(True, "пустые байты -> ParseError")
+    finally:
+        llm_module.LLM_PROVIDERS = original
+        pipeline_module.extract_from_image = original_extract
+
+
 def test_utils():
     print("\n[6] Ссылки и слаги")
     a = "https://WWW.Example.ru/recipes/borsch/?utm_source=tg&page=2#top"
@@ -142,7 +202,7 @@ def test_utils():
 
 if __name__ == "__main__":
     for fn in (test_jsonld, test_microdata, test_plain_html,
-               test_classifier, test_ingredient_parser, test_utils):
+               test_classifier, test_ingredient_parser, test_parse_image, test_utils):
         fn()
 
     print("\n" + "=" * 56)

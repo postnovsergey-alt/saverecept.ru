@@ -80,7 +80,22 @@ class Recipe(Base):
 
     @property
     def cover(self):
-        return self.images[0] if self.images else None
+        for img in self.images:
+            if not img.is_source:
+                return img
+        return None
+
+    @property
+    def source_photo(self):
+        for img in self.images:
+            if img.is_source:
+                return img
+        return None
+
+    @property
+    def gallery(self) -> list:
+        dish = [img for img in self.images if not img.is_source]
+        return dish[1:] if len(dish) > 1 else []
 
     @property
     def time_label(self) -> str:
@@ -134,6 +149,9 @@ class Image(Base):
     height: Mapped[int] = mapped_column(Integer, default=0)
     bytes: Mapped[int] = mapped_column(Integer, default=0)
     source_url: Mapped[str] = mapped_column(Text, default="")
+    # true, если это фото-источник (страница книги, скриншот),
+    # а не картинка блюда — такие не берутся в обложку и в галерею
+    is_source: Mapped[bool] = mapped_column(Boolean, default=False)
 
     recipe: Mapped["Recipe"] = relationship(back_populates="images")
 

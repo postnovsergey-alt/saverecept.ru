@@ -12,6 +12,8 @@ import asyncio
 import logging
 import sys
 
+from io import BytesIO
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
@@ -35,8 +37,9 @@ dp = Dispatcher()
 
 HELLO_LINKED = (
     "Привет, {name}! Я складываю рецепты в вашу книгу.\n\n"
-    "Просто перешлите мне ссылку на рецепт — с любого кулинарного сайта. "
-    "Я вытащу состав, шаги и фотографию и разложу по категориям.\n\n"
+    "Перешлите мне ссылку на рецепт — с любого кулинарного сайта — "
+    "или пришлите <b>фото</b> страницы книги/скриншот. "
+    "Я вытащу состав, шаги и картинку и разложу по категориям.\n\n"
     "Ещё умею:\n"
     "/find творог — поиск по книге\n"
     "/last — что добавляли недавно\n"
@@ -105,6 +108,18 @@ def _add_sync(owner_id: int, url: str, added_by: str):
             raise ParseError("Аккаунт не найден — привяжите Telegram заново (/start КОД).")
         return service.add_from_url(db, owner, url,
                                     added_from="telegram", added_by=added_by)
+    finally:
+        db.close()
+
+
+def _add_photo_sync(owner_id: int, image_bytes: bytes, mime_type: str, added_by: str):
+    db = SessionLocal()
+    try:
+        owner = db.get(User, owner_id)
+        if owner is None:
+            raise ParseError("Аккаунт не найден — привяжите Telegram заново (/start КОД).")
+        return service.add_from_image(db, owner, image_bytes, mime_type,
+                                      added_from="telegram", added_by=added_by)
     finally:
         db.close()
 
@@ -214,25 +229,7 @@ async def last(message: Message):
     await message.answer("\n".join(lines), disable_web_page_preview=True)
 
 
-@dp.message(F.text)
-async def handle_link(message: Message):
-    user = await _require_user(message)
-    if not user:
-        return
-    url = find_url(message.text or "")
-    if not url:
-        return await message.answer(
-            "Пришлите ссылку на рецепт — или /find, чтобы поискать в книге.")
-
-    status = await message.answer("Читаю страницу…")
-    try:
-        recipe, created = await asyncio.to_thread(_add_sync, user.id, url, who(message))
-    except ParseError as e:
-        return await status.edit_text(f"Не получилось: {e}")
-    except Exception as e:  # noqa: BLE001
-        log.exception("Ошибка при добавлении %s", url)
-        return await status.edit_text(f"Что-то сломалось: {e}")
-
+async def _send_result(message: Message, status: Message, recipe, created: bool):
     head = "Готово!" if created else "Такой рецепт уже был:"
     caption_parts = [
         f"{head}\n<b>{recipe.title}</b>",
@@ -254,6 +251,57 @@ async def handle_link(message: Message):
     else:
         await status.edit_text(caption, reply_markup=keyboard(recipe.slug),
                                disable_web_page_preview=True)
+
+
+@dp.message(F.photo)
+async def handle_photo(message: Message):
+    user = await _require_user(message)
+    if not user:
+        return
+
+    status = await message.answer("Читаю фото…")
+    try:
+        # берём самое крупное превью — самое чёткое для распознавания
+        photo = message.photo[-1]
+        buf = BytesIO()
+        await message.bot.download(photo, destination=buf)
+        image_bytes = buf.getvalue()
+    except Exception as e:  # noqa: BLE001
+        log.exception("Фото не скачалось")
+        return await status.edit_text(f"Фото не загрузилось: {e}")
+
+    try:
+        recipe, created = await asyncio.to_thread(
+            _add_photo_sync, user.id, image_bytes, "image/jpeg", who(message))
+    except ParseError as e:
+        return await status.edit_text(f"Не получилось: {e}")
+    except Exception as e:  # noqa: BLE001
+        log.exception("Ошибка при разборе фото")
+        return await status.edit_text(f"Что-то сломалось: {e}")
+
+    await _send_result(message, status, recipe, created)
+
+
+@dp.message(F.text)
+async def handle_link(message: Message):
+    user = await _require_user(message)
+    if not user:
+        return
+    url = find_url(message.text or "")
+    if not url:
+        return await message.answer(
+            "Пришлите ссылку или фото рецепта — или /find, чтобы поискать в книге.")
+
+    status = await message.answer("Читаю страницу…")
+    try:
+        recipe, created = await asyncio.to_thread(_add_sync, user.id, url, who(message))
+    except ParseError as e:
+        return await status.edit_text(f"Не получилось: {e}")
+    except Exception as e:  # noqa: BLE001
+        log.exception("Ошибка при добавлении %s", url)
+        return await status.edit_text(f"Что-то сломалось: {e}")
+
+    await _send_result(message, status, recipe, created)
 
 
 async def main():

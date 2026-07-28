@@ -14,6 +14,21 @@
 
 <header class="topbar">
   <div class="wrap topbar-inner">
+    <div class="nav-icons">
+      <button type="button" class="nav-icon nav-back" data-nav-back
+              aria-label="Назад" title="Назад">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+          <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor"
+                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <a class="nav-icon nav-home" href="/" aria-label="На главную" title="На главную">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+          <path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </div>
     <a class="brand" href="/">
       <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
         <path d="M4 18c0-6.6 5.4-12 12-12s12 5.4 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
@@ -59,6 +74,44 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
+
+// На главной кнопка «Назад» бессмысленна — прячем.
+if (location.pathname === '/') document.querySelector('.nav-back')?.setAttribute('hidden', '');
+
+// Кнопка «Назад» — история браузера, а если истории нет (открыто прямо по ссылке) — на главную.
+document.addEventListener('click', (e) => {
+  const back = e.target.closest('[data-nav-back]');
+  if (!back) return;
+  e.preventDefault();
+  if (history.length > 1 && document.referrer && new URL(document.referrer).origin === location.origin) {
+    history.back();
+  } else {
+    location.href = '/';
+  }
+});
+
+// Тумблер избранного на карточках списка — без перезагрузки.
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.fav-btn');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (btn.classList.contains('is-busy')) return;
+  const slug = btn.dataset.slug;
+  btn.classList.add('is-busy');
+  try {
+    const res = await fetch(`/api/r/${encodeURIComponent(slug)}/favorite`, {method: 'POST'});
+    const data = await res.json();
+    if (data.ok) {
+      const on = !!data.is_favorite;
+      btn.classList.toggle('is-on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.setAttribute('aria-label', on ? 'Убрать из избранного' : 'В избранное');
+      btn.querySelector('span').textContent = on ? '★' : '☆';
+    }
+  } catch (_) { /* оффлайн — тихо игнорим */ }
+  finally { btn.classList.remove('is-busy'); }
+});
 </script>
 {% block scripts %}{% endblock %}
 </body>
