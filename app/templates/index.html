@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_card.html" import card %}
+
+{% block content %}
+
+{% if not q and not active_category and not fav %}
+<section class="hero">
+  <div class="hero-art" aria-hidden="true">
+    <svg viewBox="0 0 300 240">
+      <defs>
+        <radialGradient id="steam" cx="50%" cy="20%" r="60%">
+          <stop offset="0" stop-color="#e9a83f" stop-opacity=".55"/>
+          <stop offset="1" stop-color="#e9a83f" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="150" cy="60" rx="95" ry="60" fill="url(#steam)"/>
+      <path d="M120 78c0-14 9-21 9-32M150 70c0-14 9-21 9-32M180 78c0-14 9-21 9-32"
+            fill="none" stroke="#e9a83f" stroke-width="4" stroke-linecap="round" opacity=".65"/>
+      <ellipse cx="150" cy="140" rx="86" ry="26" fill="none" stroke="#d4653a" stroke-width="3.5" opacity=".8"/>
+      <path d="M64 140c0 28 38.5 50 86 50s86-22 86-50" fill="none" stroke="#e9a83f"
+            stroke-width="4" stroke-linecap="round"/>
+      <path d="M28 96v58M28 96c-6 0-10.5 5-10.5 12.5S22 121 28 121M28 96c6 0 10.5 5 10.5 12.5S34 121 28 121"
+            fill="none" stroke="#a3958a" stroke-width="3.2" stroke-linecap="round" opacity=".5"/>
+      <path d="M272 94v62" stroke="#a3958a" stroke-width="3.2" stroke-linecap="round" opacity=".5"/>
+    </svg>
+  </div>
+  <div class="hero-text">
+    <h1>Всё, что вы находили и <em>хотели приготовить</em></h1>
+    <p>Киньте ссылку на рецепт — он сам разберётся на состав и шаги, заберёт фотографию
+       и встанет на нужную полку.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary btn-lg" href="/add">Добавить по ссылке</a>
+      {% if total %}<a class="btn btn-ghost btn-lg" href="#library">Смотреть книгу</a>{% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<nav class="cats" id="library" aria-label="Категории">
+  <a class="cat {{ 'is-active' if not active_category and not fav else '' }}" href="/">Все<span>{{ total }}</span></a>
+  <a class="cat {{ 'is-active' if fav else '' }}" href="/?fav=1">★ Избранное</a>
+  {% for c in CATEGORIES %}
+    {% set n = counts.get(c.slug, 0) %}
+    {% if n %}
+    <a class="cat {{ 'is-active' if active_category == c.slug else '' }}"
+       href="/?category={{ c.slug }}">{{ c.title }}<span>{{ n }}</span></a>
+    {% endif %}
+  {% endfor %}
+</nav>
+
+{% if q %}
+  <p class="result-note">По запросу «{{ q }}» — {{ recipes|length }} {{ 'рецепт' if recipes|length == 1 else 'рецептов' }}</p>
+{% endif %}
+
+{% if recipes %}
+  <div class="grid">
+    {% for r in recipes %}{{ card(r) }}{% endfor %}
+  </div>
+{% else %}
+  <div class="empty">
+    <p class="empty-title">{% if q %}Ничего не нашлось{% else %}Книга пока пустая{% endif %}</p>
+    <p>{% if q %}Попробуйте другое слово — поиск идёт и по названию, и по продуктам.{% else %}Добавьте первый рецепт — вставьте ссылку с любого кулинарного сайта.{% endif %}</p>
+    {% if not q %}<a class="btn btn-primary" href="/add">Добавить рецепт</a>{% endif %}
+  </div>
+{% endif %}
+
+{% endblock %}

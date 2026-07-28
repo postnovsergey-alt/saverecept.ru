@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Добавить рецепт — Самобранка{% endblock %}
+
+{% block content %}
+<section class="add-page">
+  <h1>Добавить рецепт</h1>
+  <p class="lede">Вставьте ссылку на страницу с рецептом. Остальное — название, продукты, шаги,
+     фотографию и категорию — заберём сами.</p>
+
+  <form class="add-form" id="add-form" method="post" action="/add">
+    <input type="url" id="url" name="url" value="{{ prefill|default('') }}"
+           placeholder="https://..." required autocomplete="off"
+           {% if not prefill %}autofocus{% endif %}>
+    <button class="btn btn-primary btn-lg" type="submit" id="submit-btn">Разобрать</button>
+  </form>
+
+  <div id="status" class="status" hidden>
+    <div class="spinner" aria-hidden="true"></div>
+    <div><b id="status-title">Читаем страницу…</b><p id="status-note" class="muted small"></p></div>
+  </div>
+
+  {% if error %}<div class="status status-error"><b>Не получилось</b><p>{{ error }}</p></div>{% endif %}
+
+  <div class="tips">
+    <h2>Что происходит дальше</h2>
+    <ol>
+      <li>Ищем на странице разметку рецепта — так устроено большинство кулинарных сайтов.</li>
+      <li>Если разметки нет, разбираем текст по заголовкам «Ингредиенты» и «Приготовление».</li>
+      <li>Скачиваем фотографию, ужимаем её в WebP — вместо пары мегабайт получается около сотни килобайт.</li>
+      <li>Определяем категорию по названию и составу и кладём рецепт на нужную полку.</li>
+    </ol>
+    <p class="muted small">Ссылка на источник сохраняется — всегда можно вернуться к оригиналу.</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const form = document.getElementById('add-form');
+const box = document.getElementById('status');
+const titleEl = document.getElementById('status-title');
+const noteEl = document.getElementById('status-note');
+const btn = document.getElementById('submit-btn');
+const phrases = ['Читаем страницу…', 'Ищем ингредиенты…', 'Забираем фотографию…', 'Раскладываем по полкам…'];
+let timer;
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = document.getElementById('url').value.trim();
+  if (!url) return;
+
+  box.hidden = false;
+  box.className = 'status';
+  btn.disabled = true;
+  let i = 0;
+  titleEl.textContent = phrases[0];
+  noteEl.textContent = '';
+  timer = setInterval(() => { i = (i + 1) % phrases.length; titleEl.textContent = phrases[i]; }, 2200);
+
+  try {
+    const res = await fetch('/api/add', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url})
+    });
+    const data = await res.json();
+    clearInterval(timer);
+    if (data.ok) {
+      box.className = 'status status-ok';
+      titleEl.textContent = data.created ? 'Готово: ' + data.title : 'Уже был в книге: ' + data.title;
+      noteEl.textContent = 'Категория: ' + data.category;
+      location.href = data.url;
+    } else {
+      box.className = 'status status-error';
+      titleEl.textContent = 'Не получилось';
+      noteEl.textContent = data.error || 'Неизвестная ошибка';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    clearInterval(timer);
+    box.className = 'status status-error';
+    titleEl.textContent = 'Сеть подвела';
+    noteEl.textContent = String(err);
+    btn.disabled = false;
+  }
+});
+
+{% if autostart %}
+window.addEventListener('load', () => form.requestSubmit());
+{% endif %}
+</script>
+{% endblock %}

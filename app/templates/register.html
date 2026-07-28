@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Регистрация — Самобранка</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body class="centered">
+<div class="login-card">
+  <svg class="brand-mark big" viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M4 18c0-6.6 5.4-12 12-12s12 5.4 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    <rect x="2" y="18" width="28" height="3.4" rx="1.7" fill="currentColor"/>
+    <circle cx="16" cy="4" r="1.7" fill="currentColor"/>
+  </svg>
+  <h1>Новый аккаунт</h1>
+  <p class="muted">Одна книга рецептов — один аккаунт</p>
+  <form method="post" action="/register">
+    <input type="text" name="display_name" placeholder="Как вас зовут (не обязательно)"
+           autocomplete="name">
+    <input type="email" name="email" value="{{ email or '' }}" placeholder="Email"
+           required autofocus autocomplete="email">
+    <input type="password" name="password" placeholder="Пароль (не короче 6 символов)"
+           required minlength="6" autocomplete="new-password">
+    <button class="btn btn-primary btn-lg" type="submit">Создать</button>
+  </form>
+  {% if error %}<p class="error-text">{{ error }}</p>{% endif %}
+  <p class="muted small">Уже есть аккаунт? <a href="/login">Войти</a></p>
+</div>
+</body>
+</html>

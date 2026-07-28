@@ -1,0 +1,46 @@
+# Самобранка на общем сервере.
+#
+# Лимиты памяти и CPU выставлены намеренно: на машине живут другие проекты,
+# и наш сервис не должен иметь возможности их придушить. 512 МБ хватает с
+# запасом — обычное потребление около 120-180 МБ, пик при обработке крупной
+# фотографии до 300 МБ.
+
+services:
+  web:
+    build: .
+    image: samobranka-web:latest
+    container_name: samobranka-web
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8000"
+    volumes:
+      - ./data:/app/data
+    mem_limit: 512m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  bot:
+    build: .
+    image: samobranka-web:latest
+    container_name: samobranka-bot
+    restart: unless-stopped
+    env_file: .env
+    command: python -m bot.main
+    volumes:
+      - ./data:/app/data
+    mem_limit: 384m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    depends_on:
+      - web

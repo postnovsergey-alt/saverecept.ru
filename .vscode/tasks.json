@@ -1,0 +1,94 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Запустить локально",
+      "detail": "Поставит зависимости, прогонит тесты, соберёт конфиг, наполнит примерами и откроет сайт",
+      "type": "shell",
+      "command": "./setup.sh",
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Развернуть на сервере",
+      "detail": "Скопирует проект по SSH и развернёт в docker с проверками и откатом",
+      "type": "shell",
+      "command": "./setup.sh --remote",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true, "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Обновить на сервере",
+      "detail": "Залить свежий код и пересобрать. Без вопросов",
+      "type": "shell",
+      "command": "./setup.sh --update",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Обследовать сервер",
+      "detail": "Ресурсы, соседи, занятые порты. Ничего не меняет",
+      "type": "shell",
+      "command": "if [ -f deploy/.target ]; then ssh -t \"$(cat deploy/.target)\" 'cd samobranka && ./deploy/inspect.sh'; else ./deploy/inspect.sh; fi",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Тесты",
+      "detail": "Разбор рецептов, категории, страницы сайта, сжатие картинок",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python -m tests.test_parser && ${workspaceFolder}/.venv/bin/python -m tests.test_web",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Разобрать ссылку",
+      "detail": "Прогнать любую ссылку через парсер и посмотреть, что получилось",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python -m tools.try_url '${input:recipeUrl}'",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Логи сервера",
+      "detail": "Смотреть, что происходит на сервере, вживую",
+      "type": "shell",
+      "command": "ssh -t \"$(cat deploy/.target)\" 'cd samobranka && docker compose logs -f --tail 80'",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Проверить модель",
+      "detail": "Отвечает ли Gemini и какие модели доступны по ключу",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python -m tools.check_llm; ${workspaceFolder}/.venv/bin/python -m tools.check_llm --list",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Откатить на сервере",
+      "detail": "Вернуть предыдущую версию. Соседей не трогает",
+      "type": "shell",
+      "command": "ssh -t \"$(cat deploy/.target)\" 'cd samobranka && ./deploy/rollback.sh'",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Сменить ключи и сервер",
+      "detail": "Забыть сохранённые ответы и спросить заново",
+      "type": "shell",
+      "command": "rm -f deploy/.secrets deploy/.target && ./deploy/secrets.sh",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "recipeUrl",
+      "type": "promptString",
+      "description": "Ссылка на рецепт"
+    }
+  ]
+}

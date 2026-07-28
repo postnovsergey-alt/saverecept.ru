@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вход — Самобранка</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body class="centered">
+<div class="login-card">
+  <svg class="brand-mark big" viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M4 18c0-6.6 5.4-12 12-12s12 5.4 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    <rect x="2" y="18" width="28" height="3.4" rx="1.7" fill="currentColor"/>
+    <circle cx="16" cy="4" r="1.7" fill="currentColor"/>
+  </svg>
+  <h1>Самобранка</h1>
+  <p class="muted">Личная книга рецептов</p>
+  <form method="post" action="/login">
+    <input type="email" name="email" value="{{ email or '' }}" placeholder="Email"
+           required autofocus autocomplete="email">
+    <input type="password" name="password" placeholder="Пароль" required
+           autocomplete="current-password">
+    <button class="btn btn-primary btn-lg" type="submit">Войти</button>
+  </form>
+  {% if error %}<p class="error-text">{{ error }}</p>{% endif %}
+  <p class="muted small">Ещё нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
+</div>
+</body>
+</html>

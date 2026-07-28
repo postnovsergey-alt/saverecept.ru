@@ -1,0 +1,51 @@
+# Самобранка за nginx. Положить в /etc/nginx/sites-available/samobranka,
+# затем:
+#   sudo ln -s /etc/nginx/sites-available/samobranka /etc/nginx/sites-enabled/
+#   sudo nginx -t          # обязательно: проверит, что конфиги соседей не сломаны
+#   sudo systemctl reload nginx
+#
+# reload, а не restart — соседние сайты при перезагрузке конфига не падают.
+#
+# Сертификат: sudo certbot --nginx -d samobranka.example.ru
+
+server {
+    listen 80;
+    server_name samobranka.example.ru;
+
+    # certbot допишет сюда редирект на https сам
+    location / {
+        proxy_pass http://127.0.0.1:8080;   # порт из WEB_PORT в .env
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # разбор рецепта иногда занимает 20-30 секунд: сайт ходит на чужую
+        # страницу, качает картинки и, если нужно, спрашивает модель
+        proxy_read_timeout 90s;
+        proxy_send_timeout 90s;
+    }
+
+    # картинки отдаём с длинным кэшем: имя файла — хэш содержимого,
+    # поэтому старая версия просто не может «прилипнуть»
+    location /media/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /static/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        expires 7d;
+    }
+
+    # фотографии рецептов бывают тяжёлыми
+    client_max_body_size 20m;
+
+    access_log /var/log/nginx/samobranka.access.log;
+    error_log  /var/log/nginx/samobranka.error.log;
+}

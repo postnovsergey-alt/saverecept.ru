@@ -1,0 +1,26 @@
+.env
+.env.*
+!.env.example
+data/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
+err.txt
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# секреты и цель деплоя
+deploy/.secrets
+deploy/.target
+deploy/.state/
+deploy/nginx-samobranka.conf

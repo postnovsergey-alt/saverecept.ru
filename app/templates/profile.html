@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль — Самобранка{% endblock %}
+
+{% block content %}
+<section class="profile">
+  <h1>Профиль</h1>
+
+  <div class="profile-block">
+    <h2>Аккаунт</h2>
+    <dl class="kv">
+      <dt>Email</dt><dd>{{ current_user.email }}</dd>
+      <dt>Имя</dt><dd>{{ current_user.display_name or '—' }}</dd>
+      <dt>Рецептов в книге</dt><dd>{{ total }}</dd>
+    </dl>
+  </div>
+
+  {% if bot_enabled %}
+  <div class="profile-block">
+    <h2>Telegram</h2>
+    {% if current_user.tg_user_id %}
+      <p>Бот привязан к вашему Telegram (id <code>{{ current_user.tg_user_id }}</code>).
+         Присылайте ему ссылки — они будут падать в вашу книгу.</p>
+      <form method="post" action="/profile/telegram/unlink" class="inline">
+        <button class="btn btn-ghost" type="submit">Отвязать Telegram</button>
+      </form>
+    {% else %}
+      <p>Чтобы бот записывал рецепты в вашу книгу, нужно один раз подружить его с аккаунтом:</p>
+      <ol class="numlist">
+        <li>Откройте бота и отправьте ему сообщение<br>
+            <code>/start {{ current_user.tg_link_code }}</code></li>
+        <li>Бот подтвердит привязку — можно кидать ссылки.</li>
+      </ol>
+      <p class="muted small">Код одноразовый. Если утёк — обновите:
+        <form method="post" action="/profile/telegram/regenerate" class="inline">
+          <button class="btn btn-ghost btn-small" type="submit">Новый код</button>
+        </form>
+      </p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="profile-block">
+    <h2>Сменить пароль</h2>
+    <form method="post" action="/profile/password" class="stack">
+      <input type="password" name="current_password" placeholder="Текущий пароль" required
+             autocomplete="current-password">
+      <input type="password" name="new_password" placeholder="Новый пароль (от 6 символов)"
+             required minlength="6" autocomplete="new-password">
+      <button class="btn btn-primary" type="submit">Обновить пароль</button>
+    </form>
+    {% if error %}<p class="error-text">{{ error }}</p>{% endif %}
+    {% if notice %}<p class="notice-text">{{ notice }}</p>{% endif %}
+  </div>
+
+  <p><a class="btn btn-ghost" href="/logout">Выйти из аккаунта</a></p>
+</section>
+{% endblock %}

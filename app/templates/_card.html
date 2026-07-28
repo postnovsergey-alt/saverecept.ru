@@ -1,0 +1,38 @@
+{% macro placeholder(recipe) %}
+  <div class="ph" style="--ph:{{ category_color(recipe.category) }}">
+    <svg viewBox="0 0 120 90" aria-hidden="true">
+      <ellipse cx="60" cy="52" rx="31" ry="12" fill="none" stroke="currentColor" stroke-width="2.4"/>
+      <path d="M29 52c0 11 13.9 19.5 31 19.5S91 63 91 52" fill="none" stroke="currentColor"
+            stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M50 30c0-5 3.5-7.5 3.5-11.5M60 27c0-5 3.5-7.5 3.5-11.5M70 30c0-5 3.5-7.5 3.5-11.5"
+            fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".7"/>
+      <path d="M20 36v22M20 36c-2.4 0-4.2 2-4.2 5s1.8 5 4.2 5M20 36c2.4 0 4.2 2 4.2 5s-1.8 5-4.2 5"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+      <path d="M100 34v24" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+    </svg>
+  </div>
+{% endmacro %}
+
+{% macro card(recipe) %}
+<a class="card" href="/r/{{ recipe.slug }}">
+  <div class="card-media">
+    {% if recipe.cover %}
+      <img class="card-img" src="/media/{{ recipe.cover.thumb_filename }}" alt=""
+           loading="lazy" decoding="async" width="480" height="640">
+    {% else %}
+      {{ placeholder(recipe) }}
+    {% endif %}
+    <span class="card-scrim"></span>
+  </div>
+  <span class="chip">{{ category_title(recipe.category) }}</span>
+  {% if recipe.is_favorite %}<span class="chip chip-fav" title="В избранном">★</span>{% endif %}
+  <div class="card-body">
+    <h3 class="card-title">{{ recipe.title }}</h3>
+    <div class="card-meta">
+      {% if recipe.time_label %}<span>{{ recipe.time_label }}</span>{% endif %}
+      {% if recipe.ingredients %}<span>{{ recipe.ingredients|length }} ингр.</span>{% endif %}
+      {% if recipe.source_domain %}<span class="src">{{ recipe.source_domain }}</span>{% endif %}
+    </div>
+  </div>
+</a>
+{% endmacro %}

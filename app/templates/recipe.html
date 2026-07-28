@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% from "_card.html" import placeholder %}
+
+{% block title %}{{ recipe.title }} — Самобранка{% endblock %}
+
+{% block content %}
+<article class="recipe">
+
+  <a class="back" href="/?category={{ recipe.category }}">← {{ category_title(recipe.category) }}</a>
+
+  <header class="recipe-hero">
+    <div class="recipe-hero-media">
+      {% if recipe.cover %}
+        <img src="/media/{{ recipe.cover.filename }}" alt="{{ recipe.title }}"
+             width="{{ recipe.cover.width }}" height="{{ recipe.cover.height }}"
+             decoding="async" fetchpriority="high">
+      {% else %}
+        {{ placeholder(recipe) }}
+      {% endif %}
+      <span class="recipe-hero-scrim"></span>
+    </div>
+    <div class="recipe-hero-text">
+      <span class="recipe-kicker">{{ category_title(recipe.category) }}</span>
+      <h1>{{ recipe.title }}</h1>
+      {% if recipe.description %}<p class="lede">{{ shorten(recipe.description, 260) }}</p>{% endif %}
+    </div>
+  </header>
+
+  <ul class="facts">
+    {% if recipe.time_label %}<li><b>{{ recipe.time_label }}</b><span>время</span></li>{% endif %}
+    {% if recipe.servings %}<li><b>{{ recipe.servings }}</b><span>выход</span></li>{% endif %}
+    <li><b>{{ recipe.ingredients|length }}</b><span>ингредиентов</span></li>
+    <li><b>{{ recipe.steps|length }}</b><span>шагов</span></li>
+  </ul>
+
+  <div class="recipe-actions">
+    <form method="post" action="/r/{{ recipe.slug }}/favorite">
+      <button class="btn {{ 'btn-primary' if recipe.is_favorite else 'btn-ghost' }}" type="submit">
+        {{ '★ В избранном' if recipe.is_favorite else '☆ В избранное' }}
+      </button>
+    </form>
+    {% if recipe.source_url %}
+      <a class="btn btn-ghost" href="{{ recipe.source_url }}" target="_blank"
+         rel="noopener noreferrer nofollow">Источник ↗</a>
+    {% endif %}
+  </div>
+
+  <div class="recipe-body">
+    <section class="ingredients">
+      <h2>Продукты</h2>
+      {% if recipe.servings %}<p class="muted small">на {{ recipe.servings }}</p>{% endif %}
+      <ul class="ing-list">
+        {% for i in recipe.ingredients %}
+        <li>
+          <label>
+            <input type="checkbox">
+            <span class="ing-name">{{ i.name }}{% if i.note %} <i class="muted">({{ i.note }})</i>{% endif %}</span>
+            <span class="ing-amount">{{ format_amount(i.amount, i.unit) }}</span>
+          </label>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if not recipe.ingredients %}
+        <p class="muted small">Состав со страницы вытащить не удалось — посмотрите в источнике.</p>
+      {% endif %}
+    </section>
+
+    <section class="steps">
+      <h2>Приготовление</h2>
+      <ol class="step-list">
+        {% for s in recipe.steps %}
+          {% if s.text.startswith('—') %}
+            <li class="step-section">{{ s.text.strip('— ') }}</li>
+          {% else %}
+            <li><span class="step-n">{{ loop.index }}</span><p>{{ s.text }}</p></li>
+          {% endif %}
+        {% endfor %}
+      </ol>
+      {% if not recipe.steps %}<p class="muted small">Шаги на странице не нашлись — откройте источник.</p>{% endif %}
+    </section>
+  </div>
+
+  {% if recipe.images|length > 1 %}
+  <section class="gallery">
+    <h2>Ещё фотографии</h2>
+    <div class="gallery-grid">
+      {% for img in recipe.images[1:] %}
+        <img src="/media/{{ img.thumb_filename }}" alt="" loading="lazy" decoding="async"
+             width="480" height="320">
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="meta-box">
+    <div class="meta-row">
+      <form method="post" action="/r/{{ recipe.slug }}/category" class="cat-form">
+        <label for="cat">Категория</label>
+        <select id="cat" name="category" onchange="this.form.submit()">
+          {% for c in CATEGORIES %}
+            <option value="{{ c.slug }}" {{ 'selected' if c.slug == recipe.category }}>{{ c.title }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button class="btn btn-ghost" type="submit">Сохранить</button></noscript>
+      </form>
+      {% if not recipe.category_locked and recipe.category_confidence < 0.5 %}
+        <span class="warn">Категорию выбрали автоматически и не очень уверенно — поправьте, если мимо.</span>
+      {% endif %}
+    </div>
+    <p class="muted small">
+      {% if recipe.source_domain %}Источник: {{ recipe.source_domain }} ·{% endif %}
+      Разбор: {{ recipe.parse_method }} ·
+      Добавлено {{ 'из Telegram' if recipe.added_from == 'telegram' else 'с сайта' }}
+      {{ recipe.created_at.strftime('%d.%m.%Y') }}
+    </p>
+    <form method="post" action="/r/{{ recipe.slug }}/delete"
+          onsubmit="return confirm('Удалить рецепт «{{ recipe.title }}»?')">
+      <button class="btn btn-danger" type="submit">Удалить рецепт</button>
+    </form>
+  </section>
+
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.ing-list input').forEach(cb => {
+  cb.addEventListener('change', () => cb.closest('li').classList.toggle('done', cb.checked));
+});
+</script>
+{% endblock %}
