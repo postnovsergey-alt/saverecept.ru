@@ -17,6 +17,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(200), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(120))
+    # 4-значный PIN — необязательный «быстрый вход» поверх пароля. Пусто = PIN не задан.
+    pin_hash: Mapped[str] = mapped_column(String(120), default="")
     display_name: Mapped[str] = mapped_column(String(120), default="")
 
     # Привязка Telegram: пользователь на сайте выпускает link_code, отправляет

@@ -213,8 +213,13 @@ def parse_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> ParsedReci
         llm_category=raw.get("llm_category", ""),
     )
 
+    from app.config import SOURCE_IMAGE_MAX_WIDTH, SOURCE_IMAGE_QUALITY
+
     digest = hashlib.sha256(image_bytes).hexdigest()
-    saved = process_image_bytes(image_bytes, source_url="")
+    saved = process_image_bytes(
+        image_bytes, source_url="",
+        max_width=SOURCE_IMAGE_MAX_WIDTH, quality=SOURCE_IMAGE_QUALITY,
+    )
     if saved:
         saved["is_source"] = True
     images = [saved] if saved else []

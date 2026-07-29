@@ -11,7 +11,11 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app import auth, service
-from app.auth import COOKIE_MAX_AGE, COOKIE_NAME, current_user, optional_user
+from app.auth import (
+    COOKIE_MAX_AGE, COOKIE_NAME,
+    PIN_COOKIE_MAX_AGE, PIN_COOKIE_NAME,
+    current_user, current_user_unlocked, optional_user,
+)
 from app.categories import CATEGORIES, CATEGORY_BY_SLUG, category_color, category_title
 from app.config import MEDIA_DIR, PUBLIC_BASE_URL, TELEGRAM_BOT_TOKEN
 from app.db import get_session, init_db
@@ -46,6 +50,49 @@ def _startup():
     log.info("Самобранка запущена. Публичный адрес: %s", PUBLIC_BASE_URL)
 
 
+@app.middleware("http")
+async def _sliding_session(request: Request, call_next):
+    """Продлеваем cookie сессии и PIN на каждом визите — «активные» не разлогиниваются.
+
+    Не трогаем cookie, если сам обработчик уже что-то с ней сделал (например,
+    /logout удаляет её, /login выпускает новую).
+    """
+    response = await call_next(request)
+
+    def already_touched(name: str) -> bool:
+        prefix = f"{name}=".encode("ascii")
+        for header_name, header_value in response.raw_headers:
+            if header_name.lower() == b"set-cookie" and header_value.startswith(prefix):
+                return True
+        return False
+
+    session_raw = request.cookies.get(COOKIE_NAME)
+    if session_raw and not already_touched(COOKIE_NAME):
+        try:
+            auth._signer.loads(session_raw)  # noqa: SLF001 — валидация подписи
+        except Exception:  # noqa: BLE001 — битую куку не продлеваем
+            pass
+        else:
+            response.set_cookie(
+                COOKIE_NAME, session_raw,
+                max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax",
+            )
+
+    pin_raw = request.cookies.get(PIN_COOKIE_NAME)
+    if pin_raw and not already_touched(PIN_COOKIE_NAME):
+        try:
+            auth._pin_signer.loads(pin_raw)  # noqa: SLF001
+        except Exception:  # noqa: BLE001
+            pass
+        else:
+            response.set_cookie(
+                PIN_COOKIE_NAME, pin_raw,
+                max_age=PIN_COOKIE_MAX_AGE, httponly=True, samesite="lax",
+            )
+
+    return response
+
+
 @app.exception_handler(HTTPException)
 async def _redirect_on_auth(request: Request, exc: HTTPException):
     if exc.status_code == 307 and "Location" in (exc.headers or {}):
@@ -74,6 +121,20 @@ def register_form(request: Request, db: Session = Depends(get_session)):
     return _render(request, "register.html", {"error": "", "email": ""})
 
 
+def _issue_session(response, user, unlock: bool = True) -> None:
+    """Ставим сессионную cookie и (по желанию) сразу PIN-cookie — чтобы после
+    свежего логина не заставлять сразу вводить PIN."""
+    response.set_cookie(
+        COOKIE_NAME, auth.make_session_cookie(user),
+        max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax",
+    )
+    if unlock:
+        response.set_cookie(
+            PIN_COOKIE_NAME, auth.make_pin_cookie(user),
+            max_age=PIN_COOKIE_MAX_AGE, httponly=True, samesite="lax",
+        )
+
+
 @app.post("/register", response_class=HTMLResponse)
 def register(
     request: Request,
@@ -88,8 +149,7 @@ def register(
         return _render(request, "register.html",
                        {"error": str(e), "email": email}, status_code=400)
     resp = RedirectResponse("/", status_code=303)
-    resp.set_cookie(COOKIE_NAME, auth.make_session_cookie(user),
-                    max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax")
+    _issue_session(resp, user)
     return resp
 
 
@@ -113,8 +173,7 @@ def login(
                        {"error": "Не подходит email или пароль", "email": email},
                        status_code=401)
     resp = RedirectResponse("/", status_code=303)
-    resp.set_cookie(COOKIE_NAME, auth.make_session_cookie(user),
-                    max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax")
+    _issue_session(resp, user)
     return resp
 
 
@@ -122,6 +181,107 @@ def login(
 def logout():
     resp = RedirectResponse("/login", status_code=303)
     resp.delete_cookie(COOKIE_NAME)
+    resp.delete_cookie(PIN_COOKIE_NAME)
+    return resp
+
+
+# ---------------------------------------------------------------- PIN-код
+
+def _safe_next(raw: str) -> str:
+    """Только внутренние пути — чтобы /unlock?next=... не был open-redirect."""
+    raw = (raw or "").strip()
+    if raw.startswith("/") and not raw.startswith("//"):
+        return raw
+    return "/"
+
+
+@app.get("/unlock", response_class=HTMLResponse)
+def unlock_form(
+    request: Request, next: str = Query("/"),
+    user: User = Depends(current_user),
+):
+    if not user.pin_hash or auth.pin_ok(request, user):
+        return RedirectResponse(_safe_next(next), status_code=303)
+    return _render(request, "unlock.html",
+                   {"error": "", "next": _safe_next(next)}, user=user)
+
+
+@app.post("/unlock", response_class=HTMLResponse)
+def unlock_submit(
+    request: Request,
+    pin: str = Form(""), next: str = Form("/"),
+    user: User = Depends(current_user),
+):
+    dest = _safe_next(next)
+    if not user.pin_hash:
+        return RedirectResponse(dest, status_code=303)
+    if not auth.verify_pin(pin, user.pin_hash):
+        return _render(request, "unlock.html",
+                       {"error": "PIN не подошёл", "next": dest},
+                       status_code=401, user=user)
+    resp = RedirectResponse(dest, status_code=303)
+    resp.set_cookie(
+        PIN_COOKIE_NAME, auth.make_pin_cookie(user),
+        max_age=PIN_COOKIE_MAX_AGE, httponly=True, samesite="lax",
+    )
+    return resp
+
+
+def _profile_ctx(db: Session, user: User, error: str = "", notice: str = "") -> dict:
+    return {
+        "total": service.total_count(db, user.id),
+        "bot_enabled": bool(TELEGRAM_BOT_TOKEN),
+        "error": error, "notice": notice,
+    }
+
+
+@app.post("/profile/pin", response_class=HTMLResponse)
+def profile_set_pin(
+    request: Request,
+    current_password: str = Form(""),
+    new_pin: str = Form(""),
+    confirm_pin: str = Form(""),
+    user: User = Depends(current_user_unlocked),
+    db: Session = Depends(get_session),
+):
+    if not auth.verify_password(current_password, user.password_hash):
+        return _render(request, "profile.html",
+                       _profile_ctx(db, user, error="Текущий пароль не подошёл"),
+                       status_code=400, user=user)
+    if new_pin != confirm_pin:
+        return _render(request, "profile.html",
+                       _profile_ctx(db, user, error="PIN и подтверждение не совпадают"),
+                       status_code=400, user=user)
+    try:
+        auth.set_pin(db, user, new_pin)
+    except ValueError as e:
+        return _render(request, "profile.html",
+                       _profile_ctx(db, user, error=str(e)),
+                       status_code=400, user=user)
+    resp = _render(request, "profile.html",
+                   _profile_ctx(db, user, notice="PIN сохранён"), user=user)
+    resp.set_cookie(
+        PIN_COOKIE_NAME, auth.make_pin_cookie(user),
+        max_age=PIN_COOKIE_MAX_AGE, httponly=True, samesite="lax",
+    )
+    return resp
+
+
+@app.post("/profile/pin/remove", response_class=HTMLResponse)
+def profile_remove_pin(
+    request: Request,
+    current_password: str = Form(""),
+    user: User = Depends(current_user_unlocked),
+    db: Session = Depends(get_session),
+):
+    if not auth.verify_password(current_password, user.password_hash):
+        return _render(request, "profile.html",
+                       _profile_ctx(db, user, error="Текущий пароль не подошёл"),
+                       status_code=400, user=user)
+    auth.remove_pin(db, user)
+    resp = _render(request, "profile.html",
+                   _profile_ctx(db, user, notice="PIN снят"), user=user)
+    resp.delete_cookie(PIN_COOKIE_NAME)
     return resp
 
 
@@ -130,7 +290,7 @@ def logout():
 @app.get("/profile", response_class=HTMLResponse)
 def profile(
     request: Request,
-    user: User = Depends(current_user),
+    user: User = Depends(current_user_unlocked),
     db: Session = Depends(get_session),
 ):
     return _render(request, "profile.html", {
@@ -146,7 +306,7 @@ def profile_password(
     request: Request,
     current_password: str = Form(""),
     new_password: str = Form(""),
-    user: User = Depends(current_user),
+    user: User = Depends(current_user_unlocked),
     db: Session = Depends(get_session),
 ):
     if not auth.verify_password(current_password, user.password_hash):
@@ -172,7 +332,7 @@ def profile_password(
 
 @app.post("/profile/telegram/regenerate")
 def profile_regenerate_code(
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     auth.regenerate_link_code(db, user)
     return RedirectResponse("/profile", status_code=303)
@@ -180,7 +340,7 @@ def profile_regenerate_code(
 
 @app.post("/profile/telegram/unlink")
 def profile_unlink_tg(
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     auth.unlink_telegram(db, user)
     return RedirectResponse("/profile", status_code=303)
@@ -194,7 +354,7 @@ def index(
     q: str = Query("", max_length=120),
     category: str = Query("", max_length=40),
     fav: int = Query(0),
-    user: User = Depends(current_user),
+    user: User = Depends(current_user_unlocked),
     db: Session = Depends(get_session),
 ):
     category = category if category in CATEGORY_BY_SLUG else ""
@@ -214,7 +374,7 @@ def index(
 @app.get("/r/{slug}", response_class=HTMLResponse)
 def recipe_page(
     request: Request, slug: str,
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     recipe = service.get_by_slug(db, user.id, slug)
     if not recipe:
@@ -227,7 +387,7 @@ def recipe_page(
 @app.get("/add", response_class=HTMLResponse)
 def add_form(
     request: Request, url: str = Query(""),
-    user: User = Depends(current_user),
+    user: User = Depends(current_user_unlocked),
 ):
     return _render(request, "add.html", {"prefill": url, "autostart": bool(url)},
                    user=user)
@@ -237,7 +397,7 @@ def add_form(
 def share_target(
     request: Request,
     url: str = Query(""), text: str = Query(""), title: str = Query(""),
-    user: User = Depends(current_user),
+    user: User = Depends(current_user_unlocked),
 ):
     """Приём из системного «Поделиться» на Android (PWA share target)."""
     link = url.strip() or find_url(text) or find_url(title) or ""
@@ -248,7 +408,7 @@ def share_target(
 @app.post("/api/add")
 def api_add(
     request: Request, payload: dict,
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     url = (payload.get("url") or "").strip()
     if not url:
@@ -270,7 +430,7 @@ def api_add(
 @app.post("/add")
 def add_submit(
     request: Request, url: str = Form(""),
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     """Запасной путь без JavaScript."""
     try:
@@ -290,7 +450,7 @@ MAX_PHOTO_BYTES = 20_000_000
 @app.post("/api/add_photo")
 async def api_add_photo(
     photo: UploadFile = File(...),
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     data = await photo.read()
     if not data:
@@ -320,7 +480,7 @@ async def api_add_photo(
 @app.post("/r/{slug}/category")
 def change_category(
     slug: str, category: str = Form(...),
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     recipe = service.get_by_slug(db, user.id, slug)
     if not recipe or category not in CATEGORY_BY_SLUG:
@@ -332,7 +492,7 @@ def change_category(
 @app.post("/r/{slug}/favorite")
 def favorite(
     slug: str,
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     recipe = service.get_by_slug(db, user.id, slug)
     if not recipe:
@@ -344,7 +504,7 @@ def favorite(
 @app.post("/api/r/{slug}/favorite")
 def api_favorite(
     slug: str,
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     """AJAX-тумблер для карточек в списке — без перезагрузки страницы."""
     recipe = service.get_by_slug(db, user.id, slug)
@@ -357,7 +517,7 @@ def api_favorite(
 @app.post("/r/{slug}/delete")
 def delete(
     slug: str,
-    user: User = Depends(current_user), db: Session = Depends(get_session),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     recipe = service.get_by_slug(db, user.id, slug)
     if not recipe:

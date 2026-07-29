@@ -61,6 +61,11 @@ IMAGE_THUMB_WIDTH = int(os.getenv("IMAGE_THUMB_WIDTH", "480"))
 IMAGE_QUALITY = int(os.getenv("IMAGE_QUALITY", "78"))
 IMAGE_MAX_COUNT = int(os.getenv("IMAGE_MAX_COUNT", "4"))
 
+# Отдельные, более щедрые лимиты для фото-исходников (страница книги, скриншот
+# рецепта): при обычных 1280/78 мелкий текст расплывается в кашу.
+SOURCE_IMAGE_MAX_WIDTH = int(os.getenv("SOURCE_IMAGE_MAX_WIDTH", "2400"))
+SOURCE_IMAGE_QUALITY = int(os.getenv("SOURCE_IMAGE_QUALITY", "92"))
+
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"

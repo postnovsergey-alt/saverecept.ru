@@ -53,6 +53,44 @@
     {% if notice %}<p class="notice-text">{{ notice }}</p>{% endif %}
   </div>
 
+  <div class="profile-block">
+    <h2>PIN-код</h2>
+    {% if current_user.pin_hash %}
+      <p>PIN задан. При заходе с этого устройства (или каждые 4 часа) будем
+         спрашивать 4 цифры вместо пароля.</p>
+      <form method="post" action="/profile/pin/remove" class="stack"
+            onsubmit="return confirm('Убрать PIN?')">
+        <input type="password" name="current_password" placeholder="Текущий пароль" required
+               autocomplete="current-password">
+        <button class="btn btn-ghost" type="submit">Убрать PIN</button>
+      </form>
+      <details style="margin-top:12px">
+        <summary class="muted small">Сменить PIN</summary>
+        <form method="post" action="/profile/pin" class="stack" style="margin-top:8px">
+          <input type="password" name="current_password" placeholder="Текущий пароль" required
+                 autocomplete="current-password">
+          <input type="tel" inputmode="numeric" pattern="\d{4}" maxlength="4" minlength="4"
+                 name="new_pin" placeholder="Новый PIN (4 цифры)" required autocomplete="off">
+          <input type="tel" inputmode="numeric" pattern="\d{4}" maxlength="4" minlength="4"
+                 name="confirm_pin" placeholder="Повторите PIN" required autocomplete="off">
+          <button class="btn btn-primary" type="submit">Сохранить новый PIN</button>
+        </form>
+      </details>
+    {% else %}
+      <p>Быстрый вход по 4 цифрам — вместо ввода пароля каждый раз.
+         Пароль остаётся: если забудете PIN, войдите по паролю (через «Выйти»).</p>
+      <form method="post" action="/profile/pin" class="stack">
+        <input type="password" name="current_password" placeholder="Текущий пароль" required
+               autocomplete="current-password">
+        <input type="tel" inputmode="numeric" pattern="\d{4}" maxlength="4" minlength="4"
+               name="new_pin" placeholder="PIN (4 цифры)" required autocomplete="off">
+        <input type="tel" inputmode="numeric" pattern="\d{4}" maxlength="4" minlength="4"
+               name="confirm_pin" placeholder="Повторите PIN" required autocomplete="off">
+        <button class="btn btn-primary" type="submit">Задать PIN</button>
+      </form>
+    {% endif %}
+  </div>
+
   <p><a class="btn btn-ghost" href="/logout">Выйти из аккаунта</a></p>
 </section>
 {% endblock %}

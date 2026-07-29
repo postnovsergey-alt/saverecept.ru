@@ -36,11 +36,26 @@ def _save_webp(img: PILImage.Image, path, quality: int) -> int:
     return path.stat().st_size
 
 
-def process_image_bytes(data: bytes, source_url: str = "") -> dict | None:
-    """Возвращает описание сохранённых файлов или None, если картинка не годится."""
+def process_image_bytes(
+    data: bytes,
+    source_url: str = "",
+    max_width: int | None = None,
+    quality: int | None = None,
+) -> dict | None:
+    """Возвращает описание сохранённых файлов или None, если картинка не годится.
+
+    max_width / quality позволяют переопределить дефолты — нужно, например, для
+    фото-исходников (страница книги), где 1280/78 превращают текст в кашу.
+    Имя файла зависит от параметров сжатия — иначе два разных вызова с одним
+    и тем же изображением, но разным качеством, будут перезаписывать друг друга.
+    """
+    width = max_width or IMAGE_MAX_WIDTH
+    q = quality or IMAGE_QUALITY
+
     digest = hashlib.sha256(data).hexdigest()[:20]
-    main_name = f"{digest}.webp"
-    thumb_name = f"{digest}_t.webp"
+    suffix = "" if (width == IMAGE_MAX_WIDTH and q == IMAGE_QUALITY) else f"_w{width}q{q}"
+    main_name = f"{digest}{suffix}.webp"
+    thumb_name = f"{digest}{suffix}_t.webp"
     main_path = MEDIA_DIR / main_name
     thumb_path = MEDIA_DIR / thumb_name
 
@@ -58,15 +73,15 @@ def process_image_bytes(data: bytes, source_url: str = "") -> dict | None:
                 img = img.convert("RGB")
 
             if main_path.exists() and thumb_path.exists():  # уже сохраняли такую
-                main = _resize_to_width(img, IMAGE_MAX_WIDTH)
+                main = _resize_to_width(img, width)
                 return {
                     "filename": main_name, "thumb_filename": thumb_name,
                     "width": main.width, "height": main.height,
                     "bytes": main_path.stat().st_size, "source_url": source_url,
                 }
 
-            main = _resize_to_width(img, IMAGE_MAX_WIDTH)
-            size = _save_webp(main, main_path, IMAGE_QUALITY)
+            main = _resize_to_width(img, width)
+            size = _save_webp(main, main_path, q)
             thumb = _resize_to_width(img, IMAGE_THUMB_WIDTH)
             _save_webp(thumb, thumb_path, IMAGE_QUALITY)
 

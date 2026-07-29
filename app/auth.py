@@ -23,7 +23,10 @@ from app.models import User
 
 COOKIE_NAME = "sb_session"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # год
+PIN_COOKIE_NAME = "sb_pin"
+PIN_COOKIE_MAX_AGE = 60 * 60 * 4  # 4 часа — «блок экрана» на устройстве
 _signer = URLSafeSerializer(SECRET_KEY, salt="samobranka-session")
+_pin_signer = URLSafeSerializer(SECRET_KEY, salt="samobranka-pin")
 _LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # без похожих 0/O, 1/I
 
 
@@ -95,6 +98,52 @@ def set_password(db: Session, user: User, new_password: str) -> None:
     db.commit()
 
 
+# ------------------------------------------------------ PIN-код (быстрый вход)
+
+def _valid_pin(pin: str) -> bool:
+    return len(pin) == 4 and pin.isdigit()
+
+
+def hash_pin(pin: str) -> str:
+    if not _valid_pin(pin):
+        raise ValueError("PIN должен быть из 4 цифр")
+    return bcrypt.hashpw(pin.encode("ascii"), bcrypt.gensalt()).decode("ascii")
+
+
+def verify_pin(pin: str, hashed: str) -> bool:
+    if not hashed or not _valid_pin(pin):
+        return False
+    try:
+        return bcrypt.checkpw(pin.encode("ascii"), hashed.encode("ascii"))
+    except (ValueError, TypeError):
+        return False
+
+
+def set_pin(db: Session, user: User, new_pin: str) -> None:
+    user.pin_hash = hash_pin(new_pin)
+    db.commit()
+
+
+def remove_pin(db: Session, user: User) -> None:
+    user.pin_hash = ""
+    db.commit()
+
+
+def make_pin_cookie(user: User) -> str:
+    return _pin_signer.dumps({"uid": user.id})
+
+
+def pin_ok(request: Request, user: User) -> bool:
+    raw = request.cookies.get(PIN_COOKIE_NAME)
+    if not raw:
+        return False
+    try:
+        data = _pin_signer.loads(raw)
+    except BadSignature:
+        return False
+    return isinstance(data, dict) and data.get("uid") == user.id
+
+
 def link_telegram(db: Session, code: str, tg_user_id: int) -> User | None:
     """Привязать Telegram-аккаунт к пользователю по одноразовому коду.
 
@@ -163,4 +212,23 @@ def current_user(
     user = optional_user(request, db)
     if user is None:
         raise HTTPException(status_code=307, headers={"Location": "/login"})
+    return user
+
+
+def current_user_unlocked(
+    request: Request, db: Session = Depends(get_session)
+) -> User:
+    """Как current_user, но если у юзера задан PIN — ещё требует свежий PIN-cookie.
+
+    Иначе редиректит на /unlock (сохраняя, куда возвращаться).
+    """
+    user = current_user(request, db)
+    if user.pin_hash and not pin_ok(request, user):
+        next_path = request.url.path or "/"
+        if request.url.query:
+            next_path = f"{next_path}?{request.url.query}"
+        raise HTTPException(
+            status_code=307,
+            headers={"Location": f"/unlock?next={next_path}"},
+        )
     return user

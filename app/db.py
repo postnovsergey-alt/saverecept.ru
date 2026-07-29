@@ -60,3 +60,4 @@ def init_db():
 
     models.Base.metadata.create_all(engine)
     _ensure_column("images", "is_source", "BOOLEAN NOT NULL DEFAULT FALSE")
+    _ensure_column("users", "pin_hash", "VARCHAR(120) NOT NULL DEFAULT ''")
