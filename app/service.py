@@ -14,7 +14,9 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Event, Feedback, Image, Ingredient, Recipe, Step, User
+from app.parser.images import process_image_bytes
 from app.parser.pipeline import ParsedRecipe, parse_image, parse_url
+from app.parser.thumbnails import fetch_video_thumbnail
 from app.utils import domain_of, normalize_url, slugify, url_key
 
 
@@ -97,7 +99,8 @@ def add_from_image(
     """Разбор фото → рецепт. Повторная загрузка того же файла дубля не создаёт
     (source_key = хэш байт). Опциональный source_url — ссылка, которую
     пользователь вбил вручную (видео, reel, статья) — сохраняем, чтобы можно
-    было вернуться к оригиналу."""
+    было вернуться к оригиналу. Для YouTube/TikTok заодно подтягиваем превью
+    видео в обложку."""
     parsed = parse_image(image_bytes, mime_type)
     existing = db.scalar(select(Recipe).where(
         Recipe.owner_id == owner.id, Recipe.source_key == parsed.source_key))
@@ -106,7 +109,10 @@ def add_from_image(
     if source_url := source_url.strip():
         parsed.source_url = normalize_url(source_url)
         parsed.source_domain = domain_of(source_url)
-    return save_parsed(db, owner, parsed, added_from=added_from, added_by=added_by), True
+    recipe = save_parsed(db, owner, parsed, added_from=added_from, added_by=added_by)
+    if source_url:
+        attach_video_cover(db, recipe, source_url)
+    return recipe, True
 
 
 def list_recipes(
@@ -173,7 +179,8 @@ def toggle_favorite(db: Session, recipe: Recipe) -> bool:
 def set_source_url(db: Session, recipe: Recipe, url: str) -> None:
     """Правит только видимую ссылку — `source_key` не трогаем, чтобы дедуп по
     исходному фото продолжал работать. Пустая строка = удалить ссылку и
-    вернуть исходный маркер `photo://` для фото-рецептов."""
+    вернуть исходный маркер `photo://` для фото-рецептов. Для YouTube/TikTok
+    попробуем подтянуть превью видео в обложку, если её ещё нет."""
     url = (url or "").strip()
     if url:
         recipe.source_url = normalize_url(url)
@@ -186,6 +193,49 @@ def set_source_url(db: Session, recipe: Recipe, url: str) -> None:
             recipe.source_url = ""
         recipe.source_domain = ""
     db.commit()
+    if url and recipe.cover is None:
+        attach_video_cover(db, recipe, url)
+
+
+def attach_video_cover(db: Session, recipe: Recipe, url: str) -> bool:
+    """Тянет превью с YouTube/TikTok и сохраняет как обложку. Возвращает True,
+    если удалось. Молча false-ит при любой ошибке — обложка не критична."""
+    if recipe.cover is not None:
+        return False
+    data = fetch_video_thumbnail(url)
+    if not data:
+        return False
+    info = process_image_bytes(data, source_url=url)
+    if not info:
+        return False
+    positions = [img.position for img in recipe.images] or [-1]
+    recipe.images.append(Image(
+        position=max(positions) + 1,
+        filename=info["filename"], thumb_filename=info["thumb_filename"],
+        width=info["width"], height=info["height"], bytes=info["bytes"],
+        source_url=url, is_source=False,
+    ))
+    db.commit()
+    return True
+
+
+def add_dish_photo(
+    db: Session, recipe: Recipe, image_bytes: bytes, mime_type: str = "image/jpeg",
+) -> bool:
+    """Прикрепляет пользовательское фото блюда. Первое такое фото становится
+    обложкой; последующие уходят в галерею (см. `Recipe.gallery`)."""
+    info = process_image_bytes(image_bytes)
+    if not info:
+        return False
+    positions = [img.position for img in recipe.images] or [-1]
+    recipe.images.append(Image(
+        position=max(positions) + 1,
+        filename=info["filename"], thumb_filename=info["thumb_filename"],
+        width=info["width"], height=info["height"], bytes=info["bytes"],
+        source_url="", is_source=False,
+    ))
+    db.commit()
+    return True
 
 
 def delete_recipe(db: Session, recipe: Recipe) -> None:

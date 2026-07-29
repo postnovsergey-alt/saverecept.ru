@@ -552,6 +552,24 @@ def change_source(
     return RedirectResponse(f"/r/{slug}", status_code=303)
 
 
+@app.post("/r/{slug}/photo")
+async def add_dish_photo(
+    slug: str, photo: UploadFile = File(...),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
+):
+    recipe = service.get_by_slug(db, user.id, slug)
+    if not recipe:
+        raise HTTPException(404)
+    data = await photo.read()
+    if not data:
+        raise HTTPException(400, "Файл пустой")
+    if len(data) > MAX_PHOTO_BYTES:
+        raise HTTPException(413, "Фото больше 20 МБ")
+    mime = photo.content_type or "image/jpeg"
+    await run_in_threadpool(service.add_dish_photo, db, recipe, data, mime)
+    return RedirectResponse(f"/r/{slug}", status_code=303)
+
+
 @app.post("/r/{slug}/favorite")
 def favorite(
     slug: str,

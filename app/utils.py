@@ -74,6 +74,10 @@ _INSTA_RE = re.compile(
     r"^https?://(?:www\.)?instagram\.com/(?:reel|reels|p|tv)/([\w-]+)",
     re.I,
 )
+_TIKTOK_RE = re.compile(
+    r"^https?://(?:www\.|vm\.|vt\.)?tiktok\.com/",
+    re.I,
+)
 
 
 def video_embed(url: str) -> dict | None:
@@ -85,4 +89,6 @@ def video_embed(url: str) -> dict | None:
     m = _INSTA_RE.search(url)
     if m:
         return {"kind": "instagram", "url": url}
+    if _TIKTOK_RE.search(url):
+        return {"kind": "tiktok", "url": url}
     return None
