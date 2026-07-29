@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Обратная связь — Самобранка{% endblock %}
+
+{% block content %}
+<section class="feedback-page">
+  <h1>Обратная связь</h1>
+  <p class="lede">Напишите, что не работает или чего не хватает — Сергей получит
+     сообщение в Telegram и разберётся.</p>
+
+  {% if notice %}
+    <div class="status status-ok"><b>Спасибо!</b><p>{{ notice }}</p></div>
+  {% endif %}
+  {% if error %}
+    <div class="status status-error"><b>Не отправилось</b><p>{{ error }}</p></div>
+  {% endif %}
+
+  <form method="post" action="/feedback" enctype="multipart/form-data" class="stack">
+    <label for="fb-text">Текст</label>
+    <textarea id="fb-text" name="text" rows="6" required
+              placeholder="Что случилось, что хочется, что не работает…">{{ text|default('') }}</textarea>
+
+    <label for="fb-attach" class="muted small">Скриншот (необязательно, до 10 МБ)</label>
+    <input id="fb-attach" type="file" name="attachment" accept="image/*">
+
+    <button class="btn btn-primary" type="submit">Отправить</button>
+  </form>
+</section>
+{% endblock %}

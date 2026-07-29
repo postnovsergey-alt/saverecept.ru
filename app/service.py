@@ -7,10 +7,13 @@ current user, бот берёт пользователя по tg_user_id. Дуб
 """
 from __future__ import annotations
 
+import time
+from datetime import datetime, timedelta
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Image, Ingredient, Recipe, Step, User
+from app.models import Event, Feedback, Image, Ingredient, Recipe, Step, User
 from app.parser.pipeline import ParsedRecipe, parse_image, parse_url
 from app.utils import slugify, url_key
 
@@ -165,3 +168,117 @@ def toggle_favorite(db: Session, recipe: Recipe) -> bool:
 def delete_recipe(db: Session, recipe: Recipe) -> None:
     db.delete(recipe)
     db.commit()
+
+
+# ------------------------------------------------------------- события / статистика
+
+_PAGE_VIEW_THROTTLE_SEC = 30
+_last_page_view: dict[str, float] = {}  # ключ: "u:<id>" или "a:<ip>"
+
+
+def log_page_view(db: Session, user_id: int | None, ip: str, path: str) -> None:
+    """Пишет заход в events, если такой же ключ давно не писали (30 сек).
+
+    Троттлинг in-memory: перезапуск процесса обнуляет — не страшно,
+    в худшем случае получим одну лишнюю запись через 30 сек после рестарта.
+    """
+    key = f"u:{user_id}" if user_id else f"a:{ip}"
+    now = time.monotonic()
+    if now - _last_page_view.get(key, 0.0) < _PAGE_VIEW_THROTTLE_SEC:
+        return
+    _last_page_view[key] = now
+    db.add(Event(user_id=user_id, path=path[:200]))
+    db.commit()
+
+
+def admin_summary(db: Session) -> dict:
+    """Сводка для /admin: все счётчики одним махом."""
+    users_total = db.scalar(select(func.count()).select_from(User)) or 0
+    recipes_total = db.scalar(select(func.count()).select_from(Recipe)) or 0
+
+    by_source = dict(db.execute(
+        select(Recipe.added_from, func.count())
+        .group_by(Recipe.added_from)
+    ).all())
+
+    # url vs фото — фото-рецепты идентифицируем по source_key ("photo:<hash>")
+    by_photo = db.scalar(
+        select(func.count()).select_from(Recipe)
+        .where(Recipe.source_key.like("photo:%"))
+    ) or 0
+    by_link = recipes_total - by_photo
+
+    return {
+        "users_total": users_total,
+        "recipes_total": recipes_total,
+        "recipes_web": int(by_source.get("web", 0)),
+        "recipes_telegram": int(by_source.get("telegram", 0)),
+        "recipes_by_link": by_link,
+        "recipes_by_photo": by_photo,
+    }
+
+
+def admin_users(db: Session) -> list[dict]:
+    """Юзеры с числом рецептов и датой последнего захода."""
+    recipes_sub = (
+        select(Recipe.owner_id, func.count().label("n"))
+        .group_by(Recipe.owner_id).subquery())
+    last_seen_sub = (
+        select(Event.user_id, func.max(Event.ts).label("last_ts"))
+        .where(Event.user_id.isnot(None))
+        .group_by(Event.user_id).subquery())
+    rows = db.execute(
+        select(
+            User, func.coalesce(recipes_sub.c.n, 0), last_seen_sub.c.last_ts)
+        .outerjoin(recipes_sub, recipes_sub.c.owner_id == User.id)
+        .outerjoin(last_seen_sub, last_seen_sub.c.user_id == User.id)
+        .order_by(User.created_at.desc())
+    ).all()
+    return [{"user": u, "recipes": int(n), "last_seen": ts} for u, n, ts in rows]
+
+
+def admin_daily_visits(db: Session, days: int = 30) -> list[dict]:
+    """Уникальные user_id и всего хитов по дням за последние N дней."""
+    since = datetime.utcnow() - timedelta(days=days)
+    day = func.date(Event.ts).label("day")
+    rows = db.execute(
+        select(day,
+               func.count(func.distinct(Event.user_id)).label("uniq"),
+               func.count().label("hits"))
+        .where(Event.ts >= since)
+        .group_by(day).order_by(day)
+    ).all()
+    return [{"day": str(d), "uniq": int(u), "hits": int(h)} for d, u, h in rows]
+
+
+# --------------------------------------------------------------- обратная связь
+
+def save_feedback(
+    db: Session, user_id: int | None, text: str, attachment_filename: str = "",
+) -> Feedback:
+    fb = Feedback(user_id=user_id, text=text[:5000],
+                  attachment_filename=attachment_filename[:200])
+    db.add(fb)
+    db.commit()
+    return fb
+
+
+def list_feedback(db: Session, limit: int = 50) -> list[Feedback]:
+    return list(db.scalars(
+        select(Feedback).order_by(Feedback.created_at.desc()).limit(limit)))
+
+
+def mark_feedback_read(db: Session, feedback_id: int) -> None:
+    fb = db.get(Feedback, feedback_id)
+    if fb:
+        fb.is_read = True
+        db.commit()
+
+
+def admin_recipients(db: Session) -> list[int]:
+    """tg_user_id всех админов, у которых Telegram привязан — им шлём уведомления."""
+    rows = db.execute(
+        select(User.tg_user_id).where(
+            User.is_admin.is_(True), User.tg_user_id.is_not(None))
+    ).all()
+    return [int(r[0]) for r in rows if r[0]]

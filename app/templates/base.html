@@ -52,6 +52,9 @@
         <span class="plus" aria-hidden="true">+</span><span class="add-label">Добавить</span>
       </a>
       {% if current_user %}
+        {% if current_user.is_admin %}
+          <a class="user-chip user-chip-admin" href="/admin" title="Админка">админ</a>
+        {% endif %}
         <a class="user-chip" href="/profile" title="Профиль">
           {{ (current_user.display_name or current_user.email)|truncate(20, True, '…') }}
         </a>
@@ -68,6 +71,7 @@
 <footer class="footer wrap">
   <span>Самобранка — личная книга рецептов</span>
   {% if bot_enabled %}<span class="dot">·</span><span>Привяжите Telegram в профиле — ссылки можно кидать боту</span>{% endif %}
+  {% if current_user %}<span class="dot">·</span><a href="/feedback">Обратная связь</a>{% endif %}
 </footer>
 
 <script>

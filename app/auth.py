@@ -232,3 +232,13 @@ def current_user_unlocked(
             headers={"Location": f"/unlock?next={next_path}"},
         )
     return user
+
+
+def require_admin(
+    request: Request, db: Session = Depends(get_session)
+) -> User:
+    """Как current_user_unlocked, но ещё требует is_admin. Иначе — 404."""
+    user = current_user_unlocked(request, db)
+    if not user.is_admin:
+        raise HTTPException(status_code=404, detail="Not found")
+    return user

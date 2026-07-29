@@ -160,3 +160,33 @@ class Image(Base):
 
 Index("ix_recipes_owner_created", Recipe.owner_id, Recipe.created_at)
 Index("ix_recipes_owner_category", Recipe.owner_id, Recipe.category)
+
+
+class Event(Base):
+    """Заходы на страницы — считаем DAU и по каким страницам ходят.
+
+    Пишет middleware с троттлингом (одна запись на юзера/IP не чаще раза в 30с),
+    чтобы навигация по сайту не превращалась в лог из десятков строк.
+    """
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
+    path: Mapped[str] = mapped_column(String(200), default="")
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class Feedback(Base):
+    """Отзывы/баг-репорты с сайта. attachment_filename — картинка в MEDIA_DIR
+    (или пусто, если приложить скриншот не захотели)."""
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+    attachment_filename: Mapped[str] = mapped_column(String(200), default="")
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, index=True)

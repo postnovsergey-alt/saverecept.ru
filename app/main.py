@@ -10,16 +10,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app import auth, service
+from app import auth, notify, service
 from app.auth import (
     COOKIE_MAX_AGE, COOKIE_NAME,
     PIN_COOKIE_MAX_AGE, PIN_COOKIE_NAME,
-    current_user, current_user_unlocked, optional_user,
+    current_user, current_user_unlocked, optional_user, require_admin,
 )
 from app.categories import CATEGORIES, CATEGORY_BY_SLUG, category_color, category_title
 from app.config import MEDIA_DIR, PUBLIC_BASE_URL, TELEGRAM_BOT_TOKEN
-from app.db import get_session, init_db
+from app.db import SessionLocal, get_session, init_db
 from app.models import User
+from app.parser.images import process_image_bytes
 from app.parser.ingredients import format_amount
 from app.parser.pipeline import ParseError
 from app.utils import find_url, shorten
@@ -48,6 +49,43 @@ templates.env.globals.update(
 def _startup():
     init_db()
     log.info("Самобранка запущена. Публичный адрес: %s", PUBLIC_BASE_URL)
+
+
+_TRACK_SKIP_PREFIXES = (
+    "/static", "/media", "/api/", "/healthz", "/sw.js",
+    "/favicon", "/manifest",
+)
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        return fwd.split(",")[0].strip()[:64]
+    return (request.client.host if request.client else "")[:64]
+
+
+@app.middleware("http")
+async def _track_visits(request: Request, call_next):
+    """Пишем один event на GET-страницу (не чаще раза в 30 сек на юзера/IP).
+
+    Троттлинг + фильтр статики держат объём таблицы events в разумных рамках
+    даже при активной навигации.
+    """
+    response = await call_next(request)
+    try:
+        if request.method == "GET" and response.status_code < 400:
+            path = request.url.path
+            if not any(path.startswith(p) for p in _TRACK_SKIP_PREFIXES):
+                uid = auth._uid_from_cookie(  # noqa: SLF001 — читаем ту же куку
+                    request.cookies.get(COOKIE_NAME))
+                db = SessionLocal()
+                try:
+                    service.log_page_view(db, uid, _client_ip(request), path)
+                finally:
+                    db.close()
+    except Exception as e:  # noqa: BLE001 — трекинг не должен ломать ответ
+        log.warning("track_visits упал: %s", e)
+    return response
 
 
 @app.middleware("http")
@@ -524,6 +562,89 @@ def delete(
         raise HTTPException(404)
     service.delete_recipe(db, recipe)
     return RedirectResponse("/", status_code=303)
+
+
+# ---------------------------------------------------------------- админка
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_dashboard(
+    request: Request,
+    user: User = Depends(require_admin), db: Session = Depends(get_session),
+):
+    return _render(request, "admin.html", {
+        "summary": service.admin_summary(db),
+        "users": service.admin_users(db),
+        "visits": service.admin_daily_visits(db, days=30),
+        "feedback": service.list_feedback(db, limit=30),
+    }, user=user)
+
+
+@app.post("/admin/feedback/{fb_id}/read", response_class=HTMLResponse)
+def admin_mark_read(
+    fb_id: int,
+    user: User = Depends(require_admin), db: Session = Depends(get_session),
+):
+    service.mark_feedback_read(db, fb_id)
+    return RedirectResponse("/admin", status_code=303)
+
+
+# ---------------------------------------------------------------- обратная связь
+
+MAX_FEEDBACK_ATTACH_BYTES = 10_000_000
+
+
+@app.get("/feedback", response_class=HTMLResponse)
+def feedback_form(
+    request: Request, user: User = Depends(current_user_unlocked),
+):
+    return _render(request, "feedback.html",
+                   {"error": "", "notice": "", "text": ""}, user=user)
+
+
+@app.post("/feedback", response_class=HTMLResponse)
+async def feedback_submit(
+    request: Request,
+    text: str = Form(""),
+    attachment: UploadFile | None = File(None),
+    user: User = Depends(current_user_unlocked),
+    db: Session = Depends(get_session),
+):
+    text = text.strip()
+    if not text:
+        return _render(request, "feedback.html",
+                       {"error": "Напишите пару строк — иначе непонятно, что случилось",
+                        "notice": "", "text": ""},
+                       status_code=400, user=user)
+
+    attach_name = ""
+    attach_path = None
+    if attachment and attachment.filename:
+        data = await attachment.read()
+        if len(data) > MAX_FEEDBACK_ATTACH_BYTES:
+            return _render(request, "feedback.html",
+                           {"error": "Файл больше 10 МБ", "notice": "", "text": text},
+                           status_code=413, user=user)
+        if data:
+            saved = await run_in_threadpool(process_image_bytes, data, "")
+            if saved:
+                attach_name = saved["filename"]
+                attach_path = MEDIA_DIR / attach_name
+
+    fb = service.save_feedback(db, user.id, text, attach_name)
+
+    author = user.display_name or user.email
+    header = (f"<b>Отзыв #{fb.id}</b> от {author}\n"
+              f"({user.email})\n\n{text}")
+    for tg_id in service.admin_recipients(db):
+        if attach_path and attach_path.exists():
+            notify.send_photo(tg_id, attach_path, caption=header)
+        else:
+            notify.send_text(tg_id, header)
+
+    return _render(request, "feedback.html", {
+        "error": "", "text": "",
+        "notice": "Спасибо — записал. Если что-то срочное, напишите в бот напрямую.",
+    }, user=user)
 
 
 # ---------------------------------------------------------------- PWA

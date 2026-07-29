@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Админка — Самобранка{% endblock %}
+
+{% block content %}
+<section class="admin">
+  <h1>Админка</h1>
+
+  <div class="admin-stats">
+    <div class="stat"><b>{{ summary.users_total }}</b><span>пользователей</span></div>
+    <div class="stat"><b>{{ summary.recipes_total }}</b><span>рецептов</span></div>
+    <div class="stat"><b>{{ summary.recipes_by_link }}</b><span>по ссылке</span></div>
+    <div class="stat"><b>{{ summary.recipes_by_photo }}</b><span>по фото</span></div>
+    <div class="stat"><b>{{ summary.recipes_web }}</b><span>с сайта</span></div>
+    <div class="stat"><b>{{ summary.recipes_telegram }}</b><span>из Telegram</span></div>
+  </div>
+
+  <div class="admin-block">
+    <h2>Пользователи</h2>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Email</th><th>Имя</th><th>Рецептов</th>
+          <th>Telegram</th><th>Регистрация</th><th>Последний заход</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in users %}
+        <tr>
+          <td>{{ row.user.email }}{% if row.user.is_admin %} <span class="badge">admin</span>{% endif %}</td>
+          <td>{{ row.user.display_name or '—' }}</td>
+          <td>{{ row.recipes }}</td>
+          <td>{{ 'привязан' if row.user.tg_user_id else '—' }}</td>
+          <td>{{ row.user.created_at.strftime('%d.%m.%Y') }}</td>
+          <td>{{ row.last_seen.strftime('%d.%m %H:%M') if row.last_seen else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="admin-block">
+    <h2>Заходы (30 дней)</h2>
+    {% if visits %}
+      <table class="admin-table">
+        <thead><tr><th>День</th><th>Уникальных</th><th>Хитов</th></tr></thead>
+        <tbody>
+          {% for v in visits %}
+          <tr><td>{{ v.day }}</td><td>{{ v.uniq }}</td><td>{{ v.hits }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted small">Событий пока нет — данные начнут копиться с этого момента.</p>
+    {% endif %}
+  </div>
+
+  <div class="admin-block">
+    <h2>Обратная связь</h2>
+    {% if feedback %}
+      <ul class="feedback-list">
+        {% for fb in feedback %}
+        <li class="{{ 'is-read' if fb.is_read else '' }}">
+          <div class="feedback-head">
+            <b>#{{ fb.id }}</b> ·
+            {{ fb.created_at.strftime('%d.%m %H:%M') }} ·
+            user {{ fb.user_id or '—' }}
+            {% if not fb.is_read %}
+              <form method="post" action="/admin/feedback/{{ fb.id }}/read" class="inline">
+                <button class="btn btn-ghost btn-small" type="submit">Прочитано</button>
+              </form>
+            {% endif %}
+          </div>
+          <p class="feedback-text">{{ fb.text }}</p>
+          {% if fb.attachment_filename %}
+            <a href="/media/{{ fb.attachment_filename }}" target="_blank" rel="noopener">
+              <img class="feedback-attach" src="/media/{{ fb.attachment_filename }}" alt="Вложение">
+            </a>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted small">Пока никто ничего не писал.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
