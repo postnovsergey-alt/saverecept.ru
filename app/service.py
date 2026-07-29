@@ -170,6 +170,24 @@ def toggle_favorite(db: Session, recipe: Recipe) -> bool:
     return recipe.is_favorite
 
 
+def set_source_url(db: Session, recipe: Recipe, url: str) -> None:
+    """Правит только видимую ссылку — `source_key` не трогаем, чтобы дедуп по
+    исходному фото продолжал работать. Пустая строка = удалить ссылку и
+    вернуть исходный маркер `photo://` для фото-рецептов."""
+    url = (url or "").strip()
+    if url:
+        recipe.source_url = normalize_url(url)
+        recipe.source_domain = domain_of(url)
+    else:
+        # если это был фото-рецепт — вернём исходный маркер, иначе просто чистим
+        if recipe.source_key.startswith("photo:"):
+            recipe.source_url = f"photo://{recipe.source_key[6:26]}"
+        else:
+            recipe.source_url = ""
+        recipe.source_domain = ""
+    db.commit()
+
+
 def delete_recipe(db: Session, recipe: Recipe) -> None:
     db.delete(recipe)
     db.commit()

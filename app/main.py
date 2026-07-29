@@ -540,6 +540,18 @@ def change_category(
     return RedirectResponse(f"/r/{slug}", status_code=303)
 
 
+@app.post("/r/{slug}/source")
+def change_source(
+    slug: str, source_url: str = Form(""),
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
+):
+    recipe = service.get_by_slug(db, user.id, slug)
+    if not recipe:
+        raise HTTPException(404)
+    service.set_source_url(db, recipe, source_url)
+    return RedirectResponse(f"/r/{slug}", status_code=303)
+
+
 @app.post("/r/{slug}/favorite")
 def favorite(
     slug: str,

@@ -159,6 +159,20 @@
       Добавлено {{ 'из Telegram' if recipe.added_from == 'telegram' else 'с сайта' }}
       {{ recipe.created_at.strftime('%d.%m.%Y') }}
     </p>
+
+    <form method="post" action="/r/{{ recipe.slug }}/source" class="source-form">
+      <label for="source-url" class="muted small">Ссылка на источник (видео, reel, статья)</label>
+      <div class="source-form-row">
+        <input type="url" id="source-url" name="source_url"
+               value="{{ '' if recipe.source_url.startswith('photo://') else recipe.source_url }}"
+               placeholder="https://…" autocomplete="off" inputmode="url">
+        <button class="btn btn-ghost btn-small" type="submit">Сохранить</button>
+      </div>
+      <p class="muted small source-form-hint">
+        Пусто — убрать ссылку. Изменения не влияют на дубликаты: рецепт остаётся привязан к исходному фото.
+      </p>
+    </form>
+
     <form method="post" action="/r/{{ recipe.slug }}/delete"
           onsubmit="return confirm('Удалить рецепт «{{ recipe.title }}»?')">
       <button class="btn btn-danger" type="submit">Удалить рецепт</button>
