@@ -18,13 +18,13 @@
 
   <label class="photo-drop" for="photo" id="photo-drop">
     <span id="photo-label">Прочитать рецепт с фото</span>
-    <span class="muted small">Страница книги, скриншот, фотография — тут же начнём разбор.</span>
-    <input type="file" id="photo" name="photo" accept="image/*" capture="environment">
+    <span class="muted small">Страница книги, скриншот из галереи или свежий снимок — тут же начнём разбор.</span>
+    <input type="file" id="photo" name="photo" accept="image/*">
   </label>
 
-  <div id="status" class="status" hidden>
+  <div id="status" class="status" hidden aria-live="polite">
     <div class="spinner" aria-hidden="true"></div>
-    <div><b id="status-title">Читаем страницу…</b><p id="status-note" class="muted small"></p></div>
+    <div><b id="status-title"></b><p id="status-note" class="muted small"></p></div>
   </div>
 
   {% if error %}<div class="status status-error"><b>Не получилось</b><p>{{ error }}</p></div>{% endif %}

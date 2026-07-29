@@ -424,6 +424,59 @@ p { margin: 0 0 1em; }
   padding: 1rem 1.2rem; border-radius: 14px;
   background: var(--surface); border: 1px solid var(--line); margin-bottom: 1.8rem;
 }
+.status[hidden] { display: none; }
+
+/* ---------- админка ---------- */
+.admin h1 { margin-bottom: 1.5rem; }
+.admin-stats {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: .8rem; margin-bottom: 2rem;
+}
+.admin-stats .stat {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; padding: .9rem 1rem;
+}
+.admin-stats .stat b { font-size: 1.6rem; display: block; color: var(--amber); }
+.admin-stats .stat span { color: var(--muted); font-size: .9rem; }
+.admin-block { margin: 2rem 0; }
+.admin-block h2 { font-size: 1.1rem; margin-bottom: .8rem; }
+.admin-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden;
+}
+.admin-table th, .admin-table td {
+  padding: .55rem .8rem; text-align: left; border-bottom: 1px solid var(--line);
+  font-size: .93rem;
+}
+.admin-table th { color: var(--muted); font-weight: 500; background: rgba(255,255,255,.02); }
+.admin-table tr:last-child td { border-bottom: 0; }
+.badge {
+  display: inline-block; padding: 1px 6px; border-radius: 6px;
+  background: var(--amber-dim, #8a6a2b); color: #fff; font-size: .72rem;
+  vertical-align: 1px;
+}
+.user-chip-admin { background: rgba(233, 168, 63, .15); }
+
+.feedback-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .8rem; }
+.feedback-list li {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: .8rem 1rem;
+}
+.feedback-list li.is-read { opacity: .55; }
+.feedback-head { color: var(--muted); font-size: .85rem; display: flex; gap: .6rem; align-items: center; }
+.feedback-text { margin: .5rem 0; white-space: pre-wrap; }
+.feedback-attach { max-width: 320px; max-height: 240px; border-radius: 8px; margin-top: .3rem; }
+.btn-small { padding: .18rem .55rem; font-size: .78rem; }
+.inline { display: inline; }
+
+.feedback-page { max-width: 640px; margin: 2.5rem auto 4rem; }
+.feedback-page textarea {
+  width: 100%; padding: .8rem 1rem; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--line); color: inherit;
+  font: inherit; resize: vertical;
+}
+.feedback-page label { color: var(--muted); font-size: .9rem; }
 .status p { margin: .2rem 0 0; }
 .status-ok { border-color: rgba(120, 180, 110, .35); }
 .status-ok b { color: #93cf82; }

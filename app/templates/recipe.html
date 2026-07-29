@@ -39,10 +39,7 @@
         {{ '★ В избранном' if recipe.is_favorite else '☆ В избранное' }}
       </button>
     </form>
-    {% if recipe.source_photo %}
-      <a class="btn btn-ghost" href="/media/{{ recipe.source_photo.filename }}"
-         target="_blank" rel="noopener">Открыть исходник ↗</a>
-    {% elif recipe.source_url and not recipe.source_url.startswith('photo://') %}
+    {% if recipe.source_url and not recipe.source_url.startswith('photo://') %}
       <a class="btn btn-ghost" href="{{ recipe.source_url }}" target="_blank"
          rel="noopener noreferrer nofollow">Источник ↗</a>
     {% endif %}
@@ -129,7 +126,7 @@
       {% endif %}
     </div>
     <p class="muted small">
-      {% if recipe.source_domain %}Источник: {{ recipe.source_domain }} ·{% endif %}
+      {% if recipe.source_domain and not recipe.source_url.startswith('photo://') %}Источник: {{ recipe.source_domain }} ·{% endif %}
       Разбор: {{ recipe.parse_method }} ·
       Добавлено {{ 'из Telegram' if recipe.added_from == 'telegram' else 'с сайта' }}
       {{ recipe.created_at.strftime('%d.%m.%Y') }}
