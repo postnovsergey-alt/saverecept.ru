@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Event, Feedback, Image, Ingredient, Recipe, Step, User
 from app.parser.images import process_image_bytes
-from app.parser.pipeline import ParsedRecipe, parse_image, parse_url
+from app.parser.pipeline import ParsedRecipe, parse_image, parse_text, parse_url
 from app.parser.thumbnails import fetch_video_thumbnail
 from app.utils import domain_of, normalize_url, slugify, url_key
 
@@ -89,6 +89,21 @@ def add_from_url(
     if existing:
         return existing, False
     parsed = parse_url(url)
+    return save_parsed(db, owner, parsed, added_from=added_from, added_by=added_by), True
+
+
+def add_from_text(
+    db: Session, owner: User, text: str,
+    added_from: str = "web", added_by: str = "",
+) -> tuple[Recipe, bool]:
+    """Разбор рецепта из свободного текста. Повторная вставка того же текста
+    (после нормализации) дубля не создаёт — source_key = хэш нормализованного
+    текста."""
+    parsed = parse_text(text)
+    existing = db.scalar(select(Recipe).where(
+        Recipe.owner_id == owner.id, Recipe.source_key == parsed.source_key))
+    if existing:
+        return existing, False
     return save_parsed(db, owner, parsed, added_from=added_from, added_by=added_by), True
 
 

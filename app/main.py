@@ -17,7 +17,7 @@ from app.auth import (
     current_user, current_user_unlocked, optional_user, require_admin,
 )
 from app.categories import CATEGORIES, CATEGORY_BY_SLUG, category_color, category_title
-from app.config import MEDIA_DIR, PUBLIC_BASE_URL, TELEGRAM_BOT_TOKEN
+from app.config import MEDIA_DIR, PUBLIC_BASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME
 from app.db import SessionLocal, get_session, init_db
 from app.models import User
 from app.parser.images import process_image_bytes
@@ -53,6 +53,7 @@ templates.env.globals.update(
     shorten=shorten,
     video_embed=video_embed,
     bot_enabled=bool(TELEGRAM_BOT_TOKEN),
+    bot_username=TELEGRAM_BOT_USERNAME,
     asset_ver=_asset_ver(),
 )
 
@@ -492,6 +493,36 @@ def add_submit(
                        {"prefill": url, "autostart": False, "error": str(e)},
                        status_code=422, user=user)
     return RedirectResponse(f"/r/{recipe.slug}", status_code=303)
+
+
+MAX_TEXT_LEN = 20_000
+
+
+@app.post("/api/add_text")
+def api_add_text(
+    payload: dict,
+    user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
+):
+    text = (payload.get("text") or "").strip()
+    if not text:
+        return JSONResponse({"ok": False, "error": "Пустой текст"}, status_code=400)
+    if len(text) > MAX_TEXT_LEN:
+        return JSONResponse({"ok": False, "error": f"Текст длиннее {MAX_TEXT_LEN} символов"},
+                            status_code=413)
+    try:
+        recipe, created = service.add_from_text(
+            db, user, text, added_from="web",
+            added_by=user.display_name or user.email)
+    except ParseError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=422)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Не смогли разобрать текст")
+        return JSONResponse({"ok": False, "error": f"Внутренняя ошибка: {e}"},
+                            status_code=500)
+    return {
+        "ok": True, "created": created, "slug": recipe.slug, "title": recipe.title,
+        "category": category_title(recipe.category), "url": f"/r/{recipe.slug}",
+    }
 
 
 MAX_PHOTO_BYTES = 20_000_000

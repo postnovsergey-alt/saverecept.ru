@@ -18,7 +18,7 @@ from app.parser.fetch import FetchError, fetch_html
 from app.parser.images import download_and_process, process_image_bytes
 from app.parser.ingredients import parse_ingredient_line
 from app.parser.llm import extract_from_image, extract_with_llm, llm_enabled
-from app.utils import domain_of, normalize_url, url_key
+from app.utils import domain_of, normalize_url, text_key, url_key
 
 log = logging.getLogger(__name__)
 
@@ -106,7 +106,13 @@ def parse_html(html: str, url: str, use_llm: bool = True) -> ParsedRecipe:
     best = max(candidates, key=_quality) if candidates else None
 
     if _quality(best) < 3 and use_llm:
-        llm_result = extract_with_llm(extract.page_text(html))
+        text_for_llm = extract.page_text(html)
+        og = extract.og_text(html)
+        # SPA-страницы (VK, дзен, ok) отдают шелл — реальный текст только в
+        # og:description. Тогда его и скармливаем модели вместо пустоты.
+        if og and (len(text_for_llm.strip()) < 200 or len(og) > len(text_for_llm)):
+            text_for_llm = og
+        llm_result = extract_with_llm(text_for_llm)
         if _quality(llm_result) > _quality(best):
             best, llm_result = llm_result, best
         best = _merge(best or {}, llm_result)
@@ -176,6 +182,59 @@ def parse_url(url: str, download_images: bool = True, use_llm: bool = True) -> P
     elif not download_images:
         recipe.images = []
     return recipe
+
+
+def parse_text(text: str) -> ParsedRecipe:
+    """Разбор рецепта из свободного текста (что-то надиктовал, скопировал из
+    мессенджера, переписал из тетрадки). Использует тот же LLM-промпт, что и
+    веб-страницы. Дедуп повторной вставки того же текста — по хэшу
+    нормализованного текста (используется как source_key)."""
+    text = (text or "").strip()
+    if not text:
+        raise ParseError("Пустой текст")
+    if not llm_enabled():
+        raise ParseError(
+            "Разбор текста требует настроенного LLM. Заполните LLM_API_KEY в .env."
+        )
+
+    raw = extract_with_llm(text)
+    if not raw:
+        raise ParseError(
+            "Из этого текста рецепт не собрался. Проверьте, что есть и продукты, "
+            "и шаги приготовления."
+        )
+
+    title = (raw.get("title") or "").strip() or "Рецепт без названия"
+    ingredients = [parse_ingredient_line(x) for x in (raw.get("ingredients") or [])]
+    ingredients = [i for i in ingredients if i["name"]]
+    steps = [s for s in (raw.get("steps") or []) if s and len(s) > 2]
+
+    category, confidence = classify(
+        title=title,
+        description=raw.get("description", ""),
+        ingredients=[i["raw"] for i in ingredients],
+        steps=steps,
+        site_category="",
+        llm_category=raw.get("llm_category", ""),
+    )
+
+    key = text_key(text)
+    return ParsedRecipe(
+        title=title[:400],
+        description=(raw.get("description") or "")[:1500],
+        ingredients=ingredients,
+        steps=steps,
+        images=[],
+        total_minutes=int(raw.get("total_minutes") or 0),
+        servings=(raw.get("servings") or "")[:60],
+        category=category,
+        category_confidence=confidence,
+        source_url=f"text://{key[:20]}",
+        source_key=f"text:{key}",
+        source_domain="текст",
+        source_title="",
+        parse_method="llm-text",
+    )
 
 
 def parse_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> ParsedRecipe:

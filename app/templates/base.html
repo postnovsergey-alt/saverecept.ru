@@ -70,7 +70,10 @@
 
 <footer class="footer wrap">
   <span>Самобранка — личная книга рецептов</span>
-  {% if bot_enabled %}<span class="dot">·</span><span>Привяжите Telegram в профиле — ссылки можно кидать боту</span>{% endif %}
+  {% if bot_username %}
+    <span class="dot">·</span>
+    <a href="https://t.me/{{ bot_username }}" target="_blank" rel="noopener">Telegram-бот @{{ bot_username }}</a>
+  {% endif %}
   {% if current_user %}<span class="dot">·</span><a href="/feedback">Обратная связь</a>{% endif %}
 </footer>
 

@@ -511,6 +511,48 @@ p { margin: 0 0 1em; }
 }
 .status[hidden] { display: none; }
 
+.text-form {
+  display: flex; flex-direction: column; gap: .5rem;
+  margin: 0 0 1.6rem;
+}
+.text-form-label { font-weight: 600; font-size: 1.02rem; }
+.text-form-hint { margin: 0 0 .3rem; line-height: 1.45; }
+.text-form textarea {
+  width: 100%; min-height: 180px; resize: vertical;
+  padding: .85rem 1rem; font: inherit; line-height: 1.5;
+  border: 1px solid var(--line); border-radius: 14px;
+  background: var(--surface); color: var(--ink);
+  transition: border-color .18s, box-shadow .18s;
+}
+.text-form textarea::placeholder { color: var(--dim); }
+.text-form textarea:focus {
+  outline: none; border-color: var(--amber-dim);
+  box-shadow: 0 0 0 3px rgba(233, 168, 63, .14);
+}
+.text-form-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.text-form textarea.is-listening {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(233, 168, 63, .22);
+}
+
+.dictate-btn { display: inline-flex; align-items: center; gap: .5rem; }
+.dictate-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: transparent; border: 1px solid var(--dim);
+  transition: background .18s, border-color .18s;
+}
+.dictate-btn.is-listening .dictate-dot {
+  background: #e05a4a; border-color: transparent;
+  box-shadow: 0 0 0 0 rgba(224, 90, 74, .6);
+  animation: dictate-pulse 1.2s ease-out infinite;
+}
+@keyframes dictate-pulse {
+  0%   { box-shadow: 0 0 0 0    rgba(224, 90, 74, .55); }
+  70%  { box-shadow: 0 0 0 10px rgba(224, 90, 74, 0);   }
+  100% { box-shadow: 0 0 0 0    rgba(224, 90, 74, 0);   }
+}
+.dictate-hint { margin: 0; }
+
 /* ---------- админка ---------- */
 .admin { padding-bottom: 3rem; }
 .admin-head { margin: .5rem 0 1.6rem; }
@@ -777,7 +819,26 @@ p { margin: 0 0 1em; }
 /* ---------- подвал ---------- */
 .footer {
   padding: 2.5rem 0 3rem; color: var(--dim); font-size: .85rem;
-  border-top: 1px solid var(--line); display: flex; gap: .6rem; flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  display: flex; gap: .6rem; flex-wrap: wrap; align-items: center;
+}
+.footer a {
+  color: var(--amber);
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: rgba(233, 168, 63, .45);
+}
+.footer a:hover { text-decoration-color: var(--amber); }
+
+/* Ссылки в текстовых блоках — заметные (кнопки/чипы/карточки не задеваем,
+   потому что они не сидят внутри абзацев/списков). */
+main.wrap p a, main.wrap li a, .video-lazy p a, .source-form-hint a {
+  color: var(--amber);
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: rgba(233, 168, 63, .45);
+}
+main.wrap p a:hover, main.wrap li a:hover,
+.video-lazy p a:hover, .source-form-hint a:hover {
+  text-decoration-color: var(--amber);
 }
 
 /* ---------- появление карточек ---------- */

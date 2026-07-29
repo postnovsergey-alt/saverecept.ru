@@ -37,6 +37,30 @@
            autocomplete="off" inputmode="url">
   </div>
 
+  <div class="add-divider">или</div>
+
+  <form class="text-form" id="text-form">
+    <label for="recipe-text" class="text-form-label">Наберите или надиктуйте текст рецепта</label>
+    <p class="muted small text-form-hint">
+      Скопируйте из мессенджера, перепишите из тетрадки или наговорите голосом.
+      Ингредиенты и шаги разберём и разложим сами.
+    </p>
+    <textarea id="recipe-text" name="text" rows="8" maxlength="20000"
+              placeholder="Название, продукты списком и шаги — в любом порядке."
+              required></textarea>
+    <div class="text-form-actions">
+      <button class="btn btn-primary" type="submit" id="text-submit-btn">Разобрать текст</button>
+      <button class="btn btn-ghost dictate-btn" type="button" id="dictate-btn" hidden>
+        <span class="dictate-dot" aria-hidden="true"></span>
+        <span class="dictate-label">🎙 Диктовать</span>
+      </button>
+    </div>
+    <p class="muted small dictate-hint" id="dictate-hint" hidden>
+      Диктовка сейчас недоступна — попробуйте открыть страницу в Chrome/Safari
+      либо нажмите значок микрофона на клавиатуре телефона.
+    </p>
+  </form>
+
   <div id="status" class="status" hidden aria-live="polite">
     <div class="spinner" aria-hidden="true"></div>
     <div><b id="status-title"></b><p id="status-note" class="muted small"></p></div>
@@ -63,12 +87,16 @@ const form = document.getElementById('add-form');
 const photoInput = document.getElementById('photo');
 const photoLabel = document.getElementById('photo-label');
 const photoDrop = document.getElementById('photo-drop');
+const textForm = document.getElementById('text-form');
+const textArea = document.getElementById('recipe-text');
+const textBtn = document.getElementById('text-submit-btn');
 const box = document.getElementById('status');
 const titleEl = document.getElementById('status-title');
 const noteEl = document.getElementById('status-note');
 const btn = document.getElementById('submit-btn');
 const urlPhrases = ['Читаем страницу…', 'Ищем ингредиенты…', 'Забираем фотографию…', 'Раскладываем по полкам…'];
 const photoPhrases = ['Отправляем фото модели…', 'Разбираем текст с картинки…', 'Собираем ингредиенты…', 'Раскладываем по полкам…'];
+const textPhrases = ['Читаем ваш текст…', 'Ищем ингредиенты…', 'Собираем шаги…', 'Раскладываем по полкам…'];
 let timer;
 
 function startStatus(phrases, disable) {
@@ -127,6 +155,23 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
+textForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = textArea.value.trim();
+  if (!text) return;
+  startStatus(textPhrases, [btn, photoInput, textBtn, textArea]);
+  try {
+    const res = await fetch('/api/add_text', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text})
+    });
+    finishStatus(await readResponse(res), [btn, photoInput, textBtn, textArea]);
+  } catch (err) {
+    failStatus(err, [btn, photoInput, textBtn, textArea]);
+  }
+});
+
 photoInput.addEventListener('change', async () => {
   const file = photoInput.files[0];
   if (!file) return;
@@ -146,6 +191,94 @@ photoInput.addEventListener('change', async () => {
     photoDrop.classList.remove('busy');
   }
 });
+
+// Диктовка через Web Speech API. Работает по HTTPS в Chrome/Edge и iOS
+// Safari 14.5+; Firefox не поддерживает — там просто прячем кнопку и
+// показываем подсказку про клавиатурный микрофон.
+(function initDictation() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const dictateBtn = document.getElementById('dictate-btn');
+  const dictateHint = document.getElementById('dictate-hint');
+  const dictateLabel = dictateBtn.querySelector('.dictate-label');
+  if (!SR) {
+    dictateHint.hidden = false;
+    return;
+  }
+  dictateBtn.hidden = false;
+
+  let recognition = null;
+  let listening = false;
+  // Индекс, с которого начинается новая порция интерим-текста в textarea —
+  // чтобы не дублировать финальные фразы и не «жевать» уже введённое.
+  let baseText = '';
+  let interimTail = '';
+
+  function render() {
+    textArea.value = (baseText + interimTail).trimStart();
+  }
+
+  function stop() {
+    if (recognition && listening) {
+      try { recognition.stop(); } catch (_) {}
+    }
+  }
+
+  function setState(on) {
+    listening = on;
+    dictateBtn.classList.toggle('is-listening', on);
+    textArea.classList.toggle('is-listening', on);
+    dictateLabel.textContent = on ? '⏸ Остановить' : '🎙 Диктовать';
+  }
+
+  dictateBtn.addEventListener('click', () => {
+    if (listening) { stop(); return; }
+    recognition = new SR();
+    recognition.lang = 'ru-RU';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    baseText = textArea.value;
+    if (baseText && !baseText.endsWith('\n')) baseText += '\n';
+    interimTail = '';
+
+    recognition.addEventListener('result', (e) => {
+      let finals = '', interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        const t = r[0].transcript;
+        if (r.isFinal) finals += t.trim() + '. ';
+        else interim += t;
+      }
+      if (finals) baseText += finals;
+      interimTail = interim;
+      render();
+    });
+
+    recognition.addEventListener('error', (e) => {
+      dictateHint.hidden = false;
+      dictateHint.textContent = 'Диктовка не удалась: ' + (e.error || 'неизвестная ошибка');
+      setState(false);
+    });
+
+    recognition.addEventListener('end', () => {
+      if (interimTail) { baseText += interimTail; interimTail = ''; render(); }
+      setState(false);
+    });
+
+    try {
+      recognition.start();
+      setState(true);
+      dictateHint.hidden = true;
+    } catch (err) {
+      dictateHint.hidden = false;
+      dictateHint.textContent = 'Не удалось запустить микрофон: ' + err.message;
+    }
+  });
+
+  // Если пользователь ушёл со страницы или отправил форму — глушим микрофон.
+  window.addEventListener('pagehide', stop);
+  textForm.addEventListener('submit', stop);
+})();
 
 {% if autostart %}
 window.addEventListener('load', () => form.requestSubmit());

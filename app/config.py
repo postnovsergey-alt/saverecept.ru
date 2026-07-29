@@ -53,6 +53,9 @@ LLM_PROVIDERS = [p for p in (
 LLM_ENABLED = bool(LLM_PROVIDERS)
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+# Юзернейм бота без @ — нужен только чтобы вывести ссылку https://t.me/{username}
+# в футере. Если не задан — ссылка не показывается.
+TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
 
 # Параметры сжатия картинок

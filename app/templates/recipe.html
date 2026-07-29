@@ -186,13 +186,13 @@
     </form>
 
     <form method="post" action="/r/{{ recipe.slug }}/photo"
-          enctype="multipart/form-data" class="dish-photo-form">
+          enctype="multipart/form-data" class="dish-photo-form" id="dish-photo-form">
       <label for="dish-photo" class="muted small">
         {% if recipe.cover %}Добавить ещё фото блюда{% else %}Загрузить фото блюда — станет обложкой{% endif %}
       </label>
       <div class="dish-photo-row">
         <input type="file" id="dish-photo" name="photo" accept="image/*" required>
-        <button class="btn btn-ghost btn-small" type="submit">Загрузить</button>
+        <noscript><button class="btn btn-ghost btn-small" type="submit">Загрузить</button></noscript>
       </div>
     </form>
 
@@ -210,6 +210,14 @@
 document.querySelectorAll('.ing-list input, .step-list .step-check').forEach(cb => {
   cb.addEventListener('change', () => cb.closest('li').classList.toggle('done', cb.checked));
 });
+
+// Выбор фото сразу отправляет форму — отдельная кнопка «Загрузить» не нужна.
+const dishPhoto = document.getElementById('dish-photo');
+if (dishPhoto) {
+  dishPhoto.addEventListener('change', () => {
+    if (dishPhoto.files && dishPhoto.files[0]) dishPhoto.form.submit();
+  });
+}
 
 // Instagram/TikTok embed — грузим их скрипт только по клику пользователя,
 // чтобы открытие карточки не сливало визит трекерам.

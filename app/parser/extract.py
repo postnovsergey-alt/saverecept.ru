@@ -313,6 +313,29 @@ def page_text(html: str, limit: int = 16000) -> str:
     return "\n".join(lines)[:limit]
 
 
+def og_text(html: str) -> str:
+    """Собирает текст из og:title + og:description — для SPA-страниц вроде VK,
+    где основной HTML пустой шелл, а весь текст поста только в og-тегах."""
+    soup = BeautifulSoup(html, "lxml")
+    parts: list[str] = []
+    ogt = soup.find("meta", property="og:title")
+    if ogt and ogt.get("content"):
+        title = ogt["content"].strip()
+        # у VK у всех постов og:title = «Пост на стене» (в googlebot-версии) —
+        # такой заголовок бесполезен, лучше отдать LLM додумать из тела
+        if title and title.lower() not in ("пост на стене", "post on wall"):
+            parts.append(title)
+    ogd = soup.find("meta", property="og:description")
+    if ogd and ogd.get("content"):
+        raw = re.sub(r"<br\s*/?>", "\n", ogd["content"], flags=re.I)
+        text = BeautifulSoup(raw, "html.parser").get_text("\n")
+        lines = [re.sub(r"[ \t ​]+", " ", ln).strip() for ln in text.splitlines()]
+        lines = [ln for ln in lines if ln]
+        if lines:
+            parts.append("\n".join(lines))
+    return "\n\n".join(parts)
+
+
 def page_meta(html: str, base_url: str) -> dict:
     soup = BeautifulSoup(html, "lxml")
     images = []

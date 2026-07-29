@@ -43,6 +43,17 @@ def url_key(url: str) -> str:
     return hashlib.sha256(normalize_url(url).encode("utf-8")).hexdigest()[:32]
 
 
+def normalize_text(text: str) -> str:
+    """Нормализация свободного текста для дедупа: одна строка со схлопнутыми
+    пробелами, нижний регистр, без «ё». Смысл — тот же копипаст не создавал
+    дубли из-за случайных отступов/переносов."""
+    return re.sub(r"\s+", " ", (text or "").lower().replace("ё", "е")).strip()
+
+
+def text_key(text: str) -> str:
+    return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()[:32]
+
+
 def domain_of(url: str) -> str:
     netloc = urlparse(url or "").netloc.lower()
     return netloc[4:] if netloc.startswith("www.") else netloc
