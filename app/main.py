@@ -23,7 +23,7 @@ from app.models import User
 from app.parser.images import process_image_bytes
 from app.parser.ingredients import format_amount
 from app.parser.pipeline import ParseError
-from app.utils import find_url, shorten
+from app.utils import find_url, shorten, video_embed
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("samobranka")
@@ -51,6 +51,7 @@ templates.env.globals.update(
     category_color=category_color,
     format_amount=format_amount,
     shorten=shorten,
+    video_embed=video_embed,
     bot_enabled=bool(TELEGRAM_BOT_TOKEN),
     asset_ver=_asset_ver(),
 )

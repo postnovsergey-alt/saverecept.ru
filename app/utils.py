@@ -59,3 +59,30 @@ def find_url(text: str) -> str | None:
 def shorten(text: str, limit: int) -> str:
     text = (text or "").strip()
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+# Видео-embed по URL источника: возвращает {"kind": ..., ...} или None.
+# YouTube — обычный iframe (лёгкий, без внешних JS-скриптов).
+# Instagram — только по клику подгружаем embed.js, чтобы Meta не следила за
+# каждым визитом карточки. TikTok/остальные пока не поддерживаем — падаем в
+# кнопку "Источник ↗".
+_YT_RE = re.compile(
+    r"(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([\w-]{11})",
+    re.I,
+)
+_INSTA_RE = re.compile(
+    r"^https?://(?:www\.)?instagram\.com/(?:reel|reels|p|tv)/([\w-]+)",
+    re.I,
+)
+
+
+def video_embed(url: str) -> dict | None:
+    if not url or url.startswith("photo://"):
+        return None
+    m = _YT_RE.search(url)
+    if m:
+        return {"kind": "youtube", "video_id": m.group(1), "url": url}
+    m = _INSTA_RE.search(url)
+    if m:
+        return {"kind": "instagram", "url": url}
+    return None

@@ -45,6 +45,34 @@
     {% endif %}
   </div>
 
+  {% set embed = video_embed(recipe.source_url) %}
+  {% if embed %}
+  <section class="video-embed" data-kind="{{ embed.kind }}">
+    <h2>Видео из источника</h2>
+    {% if embed.kind == 'youtube' %}
+      <div class="video-frame">
+        <iframe src="https://www.youtube-nocookie.com/embed/{{ embed.video_id }}"
+                title="Видео с рецептом"
+                loading="lazy" allowfullscreen
+                referrerpolicy="strict-origin-when-cross-origin"
+                allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen">
+        </iframe>
+      </div>
+    {% elif embed.kind == 'instagram' %}
+      <div class="video-lazy" data-embed-url="{{ embed.url }}">
+        <button type="button" class="btn btn-primary video-lazy-btn">
+          ▶ Смотреть здесь
+        </button>
+        <p class="muted small">
+          Ролик загрузится с серверов Instagram. Если не отобразится —
+          <a href="{{ embed.url }}" target="_blank" rel="noopener noreferrer nofollow">открыть
+          в приложении</a>.
+        </p>
+      </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <div class="recipe-body">
     <section class="ingredients">
       <h2>Продукты</h2>
@@ -144,6 +172,30 @@
 <script>
 document.querySelectorAll('.ing-list input, .step-list .step-check').forEach(cb => {
   cb.addEventListener('change', () => cb.closest('li').classList.toggle('done', cb.checked));
+});
+
+// Instagram embed — грузим скрипт Meta только по клику пользователя, чтобы
+// открытие карточки не сливало визит трекерам Meta.
+document.querySelectorAll('.video-lazy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const box = btn.closest('.video-lazy');
+    const url = box.dataset.embedUrl;
+    const bq = document.createElement('blockquote');
+    bq.className = 'instagram-media';
+    bq.setAttribute('data-instgrm-permalink', url);
+    bq.setAttribute('data-instgrm-version', '14');
+    bq.style.maxWidth = '540px';
+    bq.style.margin = '0 auto';
+    box.replaceWith(bq);
+    if (window.instgrm && window.instgrm.Embeds) {
+      window.instgrm.Embeds.process();
+    } else {
+      const s = document.createElement('script');
+      s.src = 'https://www.instagram.com/embed.js';
+      s.async = true;
+      document.body.appendChild(s);
+    }
+  });
 });
 </script>
 {% endblock %}
