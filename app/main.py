@@ -35,6 +35,16 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+def _asset_ver() -> str:
+    # mtime стиля — короткая метка для ?v=..., чтобы браузер не жевал старый CSS
+    try:
+        return str(int((BASE_DIR / "static" / "style.css").stat().st_mtime))
+    except OSError:
+        return "0"
+
+
 templates.env.globals.update(
     CATEGORIES=CATEGORIES,
     category_title=category_title,
@@ -42,6 +52,7 @@ templates.env.globals.update(
     format_amount=format_amount,
     shorten=shorten,
     bot_enabled=bool(TELEGRAM_BOT_TOKEN),
+    asset_ver=_asset_ver(),
 )
 
 
@@ -488,6 +499,7 @@ MAX_PHOTO_BYTES = 20_000_000
 @app.post("/api/add_photo")
 async def api_add_photo(
     photo: UploadFile = File(...),
+    source_url: str = Form(""),
     user: User = Depends(current_user_unlocked), db: Session = Depends(get_session),
 ):
     data = await photo.read()
@@ -499,7 +511,7 @@ async def api_add_photo(
     try:
         recipe, created = await run_in_threadpool(
             service.add_from_image, db, user, data, mime,
-            "web", user.display_name or user.email,
+            "web", user.display_name or user.email, source_url,
         )
     except ParseError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=422)

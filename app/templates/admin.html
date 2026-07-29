@@ -3,69 +3,124 @@
 
 {% block content %}
 <section class="admin">
-  <h1>Админка</h1>
+  <header class="admin-head">
+    <h1>Админка</h1>
+    <p class="muted small">Обзор пользователей, заходов и обратной связи.</p>
+  </header>
 
   <div class="admin-stats">
-    <div class="stat"><b>{{ summary.users_total }}</b><span>пользователей</span></div>
-    <div class="stat"><b>{{ summary.recipes_total }}</b><span>рецептов</span></div>
-    <div class="stat"><b>{{ summary.recipes_by_link }}</b><span>по ссылке</span></div>
-    <div class="stat"><b>{{ summary.recipes_by_photo }}</b><span>по фото</span></div>
-    <div class="stat"><b>{{ summary.recipes_web }}</b><span>с сайта</span></div>
-    <div class="stat"><b>{{ summary.recipes_telegram }}</b><span>из Telegram</span></div>
+    <div class="stat">
+      <span class="stat-label">Пользователей</span>
+      <b class="stat-value">{{ summary.users_total }}</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Рецептов всего</span>
+      <b class="stat-value">{{ summary.recipes_total }}</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">По ссылке</span>
+      <b class="stat-value">{{ summary.recipes_by_link }}</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">По фото</span>
+      <b class="stat-value">{{ summary.recipes_by_photo }}</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">С сайта</span>
+      <b class="stat-value">{{ summary.recipes_web }}</b>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Из Telegram</span>
+      <b class="stat-value">{{ summary.recipes_telegram }}</b>
+    </div>
   </div>
 
-  <div class="admin-block">
-    <h2>Пользователи</h2>
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th>Email</th><th>Имя</th><th>Рецептов</th>
-          <th>Telegram</th><th>Регистрация</th><th>Последний заход</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in users %}
-        <tr>
-          <td>{{ row.user.email }}{% if row.user.is_admin %} <span class="badge">admin</span>{% endif %}</td>
-          <td>{{ row.user.display_name or '—' }}</td>
-          <td>{{ row.recipes }}</td>
-          <td>{{ 'привязан' if row.user.tg_user_id else '—' }}</td>
-          <td>{{ row.user.created_at.strftime('%d.%m.%Y') }}</td>
-          <td>{{ row.last_seen.strftime('%d.%m %H:%M') if row.last_seen else '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <div class="admin-grid">
+    <section class="admin-block">
+      <h2>Пользователи</h2>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Имя</th>
+              <th class="num">Рецептов</th>
+              <th>Telegram</th>
+              <th>Регистрация</th>
+              <th>Последний заход</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in users %}
+            <tr>
+              <td class="cell-email">
+                <span class="email">{{ row.user.email }}</span>
+                {% if row.user.is_admin %}<span class="badge">admin</span>{% endif %}
+              </td>
+              <td>{{ row.user.display_name or '—' }}</td>
+              <td class="num">{{ row.recipes }}</td>
+              <td>
+                {% if row.user.tg_user_id %}
+                  <span class="pill pill-ok">привязан</span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td class="nowrap">{{ row.user.created_at.strftime('%d.%m.%Y') }}</td>
+              <td class="nowrap">
+                {{ row.last_seen.strftime('%d.%m %H:%M') if row.last_seen else '—' }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-  <div class="admin-block">
-    <h2>Заходы (30 дней)</h2>
-    {% if visits %}
-      <table class="admin-table">
-        <thead><tr><th>День</th><th>Уникальных</th><th>Хитов</th></tr></thead>
-        <tbody>
+    <section class="admin-block">
+      <h2>Заходы (30 дней)</h2>
+      {% if visits %}
+        {% set max_hits = visits|map(attribute='hits')|max %}
+        <div class="visits-chart" role="img" aria-label="График заходов по дням">
           {% for v in visits %}
-          <tr><td>{{ v.day }}</td><td>{{ v.uniq }}</td><td>{{ v.hits }}</td></tr>
+          <div class="visits-bar" title="{{ v.day }} · {{ v.hits }} хитов · {{ v.uniq }} уникальных">
+            <div class="visits-bar-fill"
+                 style="height: {{ ((v.hits / max_hits) * 100)|round(1) }}%">
+              <span class="visits-bar-count">{{ v.hits }}</span>
+            </div>
+            <span class="visits-bar-day">{{ v.day[-5:] }}</span>
+          </div>
           {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <p class="muted small">Событий пока нет — данные начнут копиться с этого момента.</p>
-    {% endif %}
+        </div>
+        <div class="visits-summary">
+          <div><b>{{ visits|length }}</b><span>дней с активностью</span></div>
+          <div><b>{{ visits|sum(attribute='hits') }}</b><span>всего хитов</span></div>
+          <div><b>{{ visits|map(attribute='uniq')|max }}</b><span>пик уникальных</span></div>
+        </div>
+      {% else %}
+        <p class="muted small">Событий пока нет — данные начнут копиться с этого момента.</p>
+      {% endif %}
+    </section>
   </div>
 
-  <div class="admin-block">
-    <h2>Обратная связь</h2>
+  <section class="admin-block">
+    <h2>
+      Обратная связь
+      {% if feedback %}
+        {% set unread = feedback|rejectattr('is_read')|list|length %}
+        {% if unread %}<span class="badge badge-warn">{{ unread }} новых</span>{% endif %}
+      {% endif %}
+    </h2>
     {% if feedback %}
       <ul class="feedback-list">
         {% for fb in feedback %}
-        <li class="{{ 'is-read' if fb.is_read else '' }}">
+        <li class="{{ 'is-read' if fb.is_read else 'is-unread' }}">
           <div class="feedback-head">
-            <b>#{{ fb.id }}</b> ·
-            {{ fb.created_at.strftime('%d.%m %H:%M') }} ·
-            user {{ fb.user_id or '—' }}
+            <span class="feedback-id">#{{ fb.id }}</span>
+            <span>{{ fb.created_at.strftime('%d.%m %H:%M') }}</span>
+            <span>· user {{ fb.user_id or '—' }}</span>
             {% if not fb.is_read %}
-              <form method="post" action="/admin/feedback/{{ fb.id }}/read" class="inline">
+              <form method="post" action="/admin/feedback/{{ fb.id }}/read" class="inline feedback-action">
                 <button class="btn btn-ghost btn-small" type="submit">Прочитано</button>
               </form>
             {% endif %}
@@ -82,6 +137,6 @@
     {% else %}
       <p class="muted small">Пока никто ничего не писал.</p>
     {% endif %}
-  </div>
+  </section>
 </section>
 {% endblock %}

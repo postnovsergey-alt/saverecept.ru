@@ -22,6 +22,16 @@
     <input type="file" id="photo" name="photo" accept="image/*">
   </label>
 
+  <div class="photo-source">
+    <label for="photo-source-url" class="muted small">
+      Ссылка на источник (необязательно) — например, на видео или reel, откуда рецепт.
+      Пригодится, если потом захочется вернуться к оригиналу.
+    </label>
+    <input type="url" id="photo-source-url" name="source_url"
+           placeholder="https://instagram.com/reel/… или https://youtu.be/…"
+           autocomplete="off" inputmode="url">
+  </div>
+
   <div id="status" class="status" hidden aria-live="polite">
     <div class="spinner" aria-hidden="true"></div>
     <div><b id="status-title"></b><p id="status-note" class="muted small"></p></div>
@@ -119,6 +129,8 @@ photoInput.addEventListener('change', async () => {
   photoDrop.classList.add('busy');
   const fd = new FormData();
   fd.append('photo', file);
+  const sourceUrl = (document.getElementById('photo-source-url').value || '').trim();
+  if (sourceUrl) fd.append('source_url', sourceUrl);
   startStatus(photoPhrases, [btn, photoInput]);
   try {
     const res = await fetch('/api/add_photo', {method: 'POST', body: fd});

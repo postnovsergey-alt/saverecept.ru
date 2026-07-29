@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Event, Feedback, Image, Ingredient, Recipe, Step, User
 from app.parser.pipeline import ParsedRecipe, parse_image, parse_url
-from app.utils import slugify, url_key
+from app.utils import domain_of, normalize_url, slugify, url_key
 
 
 def _unique_slug(db: Session, owner_id: int, title: str) -> str:
@@ -92,15 +92,20 @@ def add_from_url(
 
 def add_from_image(
     db: Session, owner: User, image_bytes: bytes, mime_type: str = "image/jpeg",
-    added_from: str = "web", added_by: str = "",
+    added_from: str = "web", added_by: str = "", source_url: str = "",
 ) -> tuple[Recipe, bool]:
     """Разбор фото → рецепт. Повторная загрузка того же файла дубля не создаёт
-    (source_key = хэш байт)."""
+    (source_key = хэш байт). Опциональный source_url — ссылка, которую
+    пользователь вбил вручную (видео, reel, статья) — сохраняем, чтобы можно
+    было вернуться к оригиналу."""
     parsed = parse_image(image_bytes, mime_type)
     existing = db.scalar(select(Recipe).where(
         Recipe.owner_id == owner.id, Recipe.source_key == parsed.source_key))
     if existing:
         return existing, False
+    if source_url := source_url.strip():
+        parsed.source_url = normalize_url(source_url)
+        parsed.source_domain = domain_of(source_url)
     return save_parsed(db, owner, parsed, added_from=added_from, added_by=added_by), True
 
 
