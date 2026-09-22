@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#100e0c">
+<meta name="color-scheme" content="dark">
+<title>Самобранка — личная книга рецептов, которая собирает сама себя</title>
+<meta name="description" content="Кидаете ссылку, фото или голосовое — получаете аккуратный рецепт с ингредиентами и шагами. Работает через сайт и Telegram-бота.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/static/style.css?v={{ asset_ver }}">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body class="landing-body">
+
+<header class="lp-top">
+  <a class="brand" href="/">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M4 18c0-6.6 5.4-12 12-12s12 5.4 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      <rect x="2" y="18" width="28" height="3.4" rx="1.7" fill="currentColor"/>
+      <circle cx="16" cy="4" r="1.7" fill="currentColor"/>
+    </svg>
+    <span class="brand-text">Самобранка</span>
+  </a>
+  <nav class="lp-nav">
+    <a class="lp-link" href="/login">Войти</a>
+    <a class="btn btn-primary btn-small" href="/register">Создать книгу</a>
+  </nav>
+</header>
+
+<main class="lp">
+
+  <section class="lp-hero">
+    <span class="lp-eyebrow">Личная книга рецептов</span>
+    <h1>Ваши рецепты — <em>в одном месте</em>, без ручного набора.</h1>
+    <p class="lp-lead">
+      Кидаете ссылку с сайта, фото страницы из книги или голосовое сообщение —
+      Самобранка сама достанет заголовок, ингредиенты и шаги.
+      Дальше рецепт живёт у вас в аккуратной библиотеке — на сайте и в Telegram.
+    </p>
+    <div class="lp-cta">
+      <a class="btn btn-primary btn-lg" href="/register">Завести свою книгу</a>
+      <a class="lp-secondary" href="/login">Уже есть аккаунт →</a>
+    </div>
+    <p class="lp-fineprint">Бесплатно · без рекламы · без телефона</p>
+  </section>
+
+  <section class="lp-features">
+    <article class="lp-feat">
+      <div class="lp-feat-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26">
+          <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66L11.5 6.84"
+                fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1.5-1.5"
+                fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3>Ссылка → рецепт</h3>
+      <p>Кулинарные сайты, VK, блоги — распарсим заголовок, ингредиенты, шаги
+        и подтянем обложку.</p>
+    </article>
+
+    <article class="lp-feat">
+      <div class="lp-feat-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26">
+          <rect x="3" y="5" width="18" height="14" rx="2.4" fill="none"
+                stroke="currentColor" stroke-width="1.7"/>
+          <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+          <circle cx="17" cy="9" r="1" fill="currentColor"/>
+        </svg>
+      </div>
+      <h3>Фото страницы</h3>
+      <p>Сфотографируйте бабушкину поваренную книгу или разворот журнала —
+        распознаем текст и разложим по полочкам.</p>
+    </article>
+
+    <article class="lp-feat">
+      <div class="lp-feat-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26">
+          <rect x="9" y="3" width="6" height="12" rx="3" fill="none"
+                stroke="currentColor" stroke-width="1.7"/>
+          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" fill="none"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3>Голос и текст</h3>
+      <p>Продиктуйте в бот или вставьте текст в любом виде — превратим
+        в структурированный рецепт.</p>
+    </article>
+
+    <article class="lp-feat">
+      <div class="lp-feat-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26">
+          <path d="M3 5l18 6-8 3-3 8-7-17z" fill="none" stroke="currentColor"
+                stroke-width="1.7" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3>Через Telegram</h3>
+      <p>Привяжите бота — и присылайте ссылки/фото прямо из чата.
+        Рецепт сразу окажется в вашей книге на сайте.</p>
+    </article>
+
+    <article class="lp-feat">
+      <div class="lp-feat-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26">
+          <rect x="4" y="10" width="16" height="10" rx="2.4" fill="none"
+                stroke="currentColor" stroke-width="1.7"/>
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3>PIN-код</h3>
+      <p>Опциональный быстрый вход в 4 цифры — удобно, если книгой пользуется
+        вся семья с одного устройства.</p>
+    </article>
+
+    <article class="lp-feat">
+      <div class="lp-feat-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26">
+          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/>
+          <path d="M9 8l7 4-7 4z" fill="currentColor"/>
+        </svg>
+      </div>
+      <h3>Обложки автоматом</h3>
+      <p>Из YouTube и TikTok сами возьмём превью — карточки в библиотеке
+        сразу выглядят как надо. Своё фото блюда тоже можно.</p>
+    </article>
+  </section>
+
+  <section class="lp-how">
+    <h2>Как это работает</h2>
+    <ol class="lp-steps">
+      <li>
+        <span class="lp-step-num">1</span>
+        <div>
+          <h4>Регистрация в минуту</h4>
+          <p>Email и пароль — всё. Никаких кодов из SMS и подтверждений.</p>
+        </div>
+      </li>
+      <li>
+        <span class="lp-step-num">2</span>
+        <div>
+          <h4>Присылаете рецепт</h4>
+          <p>Ссылка, фото, голосовое или обычный текст — на сайте или в
+            Telegram-боте.</p>
+        </div>
+      </li>
+      <li>
+        <span class="lp-step-num">3</span>
+        <div>
+          <h4>Готовите по книге</h4>
+          <p>Ингредиенты, шаги, таймер, поиск и категории — всегда под рукой,
+            в том числе оффлайн как PWA.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section class="lp-final">
+    <h2>Заведите свою Самобранку</h2>
+    <p class="muted">Соберите рецепты семьи в одну книгу — и перестаньте искать «ту самую» ссылку в переписке.</p>
+    <a class="btn btn-primary btn-lg" href="/register">Начать бесплатно</a>
+  </section>
+</main>
+
+<footer class="footer lp-footer">
+  <span>Самобранка — личная книга рецептов</span>
+  {% if bot_username %}
+    <span class="dot">·</span>
+    <a href="https://t.me/{{ bot_username }}" target="_blank" rel="noopener">Telegram-бот @{{ bot_username }}</a>
+  {% endif %}
+</footer>
+
+</body>
+</html>

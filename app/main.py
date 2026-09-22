@@ -405,9 +405,13 @@ def index(
     q: str = Query("", max_length=120),
     category: str = Query("", max_length=40),
     fav: int = Query(0),
-    user: User = Depends(current_user_unlocked),
+    user: User | None = Depends(optional_user),
     db: Session = Depends(get_session),
 ):
+    if user is None:
+        return _render(request, "landing.html", {})
+    if user.pin_hash and not auth.pin_ok(request, user):
+        return RedirectResponse("/unlock", status_code=303)
     category = category if category in CATEGORY_BY_SLUG else ""
     recipes = service.list_recipes(
         db, owner_id=user.id, category=category or None,
@@ -659,6 +663,18 @@ def admin_mark_read(
     user: User = Depends(require_admin), db: Session = Depends(get_session),
 ):
     service.mark_feedback_read(db, fb_id)
+    return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/delete", response_class=HTMLResponse)
+def admin_delete_user(
+    user_id: int,
+    user: User = Depends(require_admin), db: Session = Depends(get_session),
+):
+    if user_id == user.id:
+        raise HTTPException(400, "Нельзя удалить самого себя")
+    if not service.delete_user(db, user_id):
+        raise HTTPException(404)
     return RedirectResponse("/admin", status_code=303)
 
 

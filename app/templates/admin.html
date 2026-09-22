@@ -35,50 +35,8 @@
     </div>
   </div>
 
-  <div class="admin-grid">
-    <section class="admin-block">
-      <h2>Пользователи</h2>
-      <div class="table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Имя</th>
-              <th class="num">Рецептов</th>
-              <th>Telegram</th>
-              <th>Регистрация</th>
-              <th>Последний заход</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in users %}
-            <tr>
-              <td class="cell-email">
-                <span class="email">{{ row.user.email }}</span>
-                {% if row.user.is_admin %}<span class="badge">admin</span>{% endif %}
-              </td>
-              <td>{{ row.user.display_name or '—' }}</td>
-              <td class="num">{{ row.recipes }}</td>
-              <td>
-                {% if row.user.tg_user_id %}
-                  <span class="pill pill-ok">привязан</span>
-                {% else %}
-                  <span class="muted">—</span>
-                {% endif %}
-              </td>
-              <td class="nowrap">{{ row.user.created_at.strftime('%d.%m.%Y') }}</td>
-              <td class="nowrap">
-                {{ row.last_seen.strftime('%d.%m %H:%M') if row.last_seen else '—' }}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="admin-block">
-      <h2>Заходы (30 дней)</h2>
+  <section class="admin-block">
+    <h2>Заходы (30 дней)</h2>
       {% if visits %}
         {% set max_hits = visits|map(attribute='hits')|max %}
         <div class="visits-chart" role="img" aria-label="График заходов по дням">
@@ -100,8 +58,61 @@
       {% else %}
         <p class="muted small">Событий пока нет — данные начнут копиться с этого момента.</p>
       {% endif %}
-    </section>
-  </div>
+  </section>
+
+  <section class="admin-block">
+    <h2>Пользователи <span class="muted small">· {{ users|length }}</span></h2>
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Имя</th>
+            <th class="num">Рецептов</th>
+            <th>Telegram</th>
+            <th>Регистрация</th>
+            <th>Последний заход</th>
+            <th class="actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in users %}
+          <tr>
+            <td class="cell-email">
+              <span class="email">{{ row.user.email }}</span>
+              {% if row.user.is_admin %}<span class="badge">admin</span>{% endif %}
+            </td>
+            <td>{{ row.user.display_name or '—' }}</td>
+            <td class="num">{{ row.recipes }}</td>
+            <td>
+              {% if row.user.tg_user_id %}
+                <span class="pill pill-ok">привязан</span>
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+            <td class="nowrap">{{ row.user.created_at.strftime('%d.%m.%Y') }}</td>
+            <td class="nowrap">
+              {{ row.last_seen.strftime('%d.%m %H:%M') if row.last_seen else '—' }}
+            </td>
+            <td class="actions">
+              {% if row.user.id != current_user.id %}
+                <form method="post"
+                      action="/admin/users/{{ row.user.id }}/delete"
+                      class="inline"
+                      onsubmit="return confirm('Удалить {{ row.user.email }} и все его {{ row.recipes }} рецептов? Это необратимо.');">
+                  <button class="btn btn-ghost btn-small btn-danger" type="submit">Удалить</button>
+                </form>
+              {% else %}
+                <span class="muted small">это вы</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <section class="admin-block">
     <h2>

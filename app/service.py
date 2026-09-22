@@ -258,6 +258,17 @@ def delete_recipe(db: Session, recipe: Recipe) -> None:
     db.commit()
 
 
+def delete_user(db: Session, user_id: int) -> bool:
+    """Удаляет пользователя. Рецепты/картинки/шаги улетают каскадом,
+    events/feedback остаются с user_id=NULL (SET NULL по FK)."""
+    user = db.get(User, user_id)
+    if not user:
+        return False
+    db.delete(user)
+    db.commit()
+    return True
+
+
 # ------------------------------------------------------------- события / статистика
 
 _PAGE_VIEW_THROTTLE_SEC = 30
