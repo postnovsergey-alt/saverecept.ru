@@ -58,6 +58,12 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
 
+# Коды подтверждения владения сайтом в Яндекс.Вебмастере и Google Search Console.
+# Публичные значения (всё равно попадают в HTML) — держим прямо здесь как дефолт,
+# чтобы не заводить их в .env на VPS. ENV-переменная всё ещё перебивает, если что.
+YANDEX_VERIFICATION = os.getenv("YANDEX_VERIFICATION", "a875f148dfc3473d").strip()
+GOOGLE_VERIFICATION = os.getenv("GOOGLE_VERIFICATION", "").strip()
+
 # Параметры сжатия картинок
 IMAGE_MAX_WIDTH = int(os.getenv("IMAGE_MAX_WIDTH", "1280"))
 IMAGE_THUMB_WIDTH = int(os.getenv("IMAGE_THUMB_WIDTH", "480"))

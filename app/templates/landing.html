@@ -7,9 +7,58 @@
 <meta name="color-scheme" content="dark">
 <title>Самобранка — личная книга рецептов, которая собирает сама себя</title>
 <meta name="description" content="Кидаете ссылку, фото или голосовое — получаете аккуратный рецепт с ингредиентами и шагами. Работает через сайт и Telegram-бота.">
+<link rel="canonical" href="{{ public_base_url }}/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Самобранка">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:title" content="Самобранка — личная книга рецептов, которая собирает сама себя">
+<meta property="og:description" content="Кидаете ссылку, фото или голосовое — получаете аккуратный рецепт с ингредиентами и шагами. Работает через сайт и Telegram-бота.">
+<meta property="og:url" content="{{ public_base_url }}/">
+<meta property="og:image" content="{{ public_base_url }}/static/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Самобранка — личная книга рецептов">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Самобранка — личная книга рецептов">
+<meta name="twitter:description" content="Ссылка, фото или голосовое → аккуратный рецепт в вашей личной книге.">
+<meta name="twitter:image" content="{{ public_base_url }}/static/og-cover.png">
+
+{% if yandex_verification %}<meta name="yandex-verification" content="{{ yandex_verification }}">{% endif %}
+{% if google_verification %}<meta name="google-site-verification" content="{{ google_verification }}">{% endif %}
+
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="preload" as="style" href="/static/style.css?v={{ asset_ver }}">
 <link rel="stylesheet" href="/static/style.css?v={{ asset_ver }}">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "{{ public_base_url }}/#website",
+      "url": "{{ public_base_url }}/",
+      "name": "Самобранка",
+      "inLanguage": "ru",
+      "description": "Личная книга рецептов: ссылка, фото или голосовое → структурированный рецепт."
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "Самобранка",
+      "url": "{{ public_base_url }}/",
+      "applicationCategory": "LifestyleApplication",
+      "operatingSystem": "Web, Android, iOS",
+      "inLanguage": "ru",
+      "description": "Персональная книга рецептов с автоматическим разбором ссылок, фото и голосовых через веб и Telegram-бота.",
+      "offers": {"@type": "Offer", "price": "0", "priceCurrency": "RUB"}
+    }
+  ]
+}
+</script>
 </head>
 <body class="landing-body">
 
@@ -43,10 +92,21 @@
       <a class="lp-secondary" href="/login">Уже есть аккаунт →</a>
     </div>
     <p class="lp-fineprint">Бесплатно · без рекламы · без телефона</p>
+
+    <div class="lp-accepts" aria-hidden="true">
+      <span>Понимает</span>
+      <span class="lp-rotator">
+        <span>ссылки на рецепты</span>
+        <span>фото страниц</span>
+        <span>голосовые</span>
+        <span>простой текст</span>
+      </span>
+    </div>
   </section>
 
-  <section class="lp-features">
-    <article class="lp-feat">
+  <h2 class="lp-features-title reveal">Что умеет Самобранка</h2>
+  <section class="lp-features" aria-label="Возможности">
+    <article class="lp-feat reveal d1">
       <div class="lp-feat-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="26" height="26">
           <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66L11.5 6.84"
@@ -60,7 +120,7 @@
         и подтянем обложку.</p>
     </article>
 
-    <article class="lp-feat">
+    <article class="lp-feat reveal d2">
       <div class="lp-feat-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="26" height="26">
           <rect x="3" y="5" width="18" height="14" rx="2.4" fill="none"
@@ -74,7 +134,7 @@
         распознаем текст и разложим по полочкам.</p>
     </article>
 
-    <article class="lp-feat">
+    <article class="lp-feat reveal d3">
       <div class="lp-feat-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="26" height="26">
           <rect x="9" y="3" width="6" height="12" rx="3" fill="none"
@@ -88,7 +148,7 @@
         в структурированный рецепт.</p>
     </article>
 
-    <article class="lp-feat">
+    <article class="lp-feat reveal d4">
       <div class="lp-feat-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="26" height="26">
           <path d="M3 5l18 6-8 3-3 8-7-17z" fill="none" stroke="currentColor"
@@ -100,7 +160,7 @@
         Рецепт сразу окажется в вашей книге на сайте.</p>
     </article>
 
-    <article class="lp-feat">
+    <article class="lp-feat reveal d5">
       <div class="lp-feat-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="26" height="26">
           <rect x="4" y="10" width="16" height="10" rx="2.4" fill="none"
@@ -114,7 +174,7 @@
         вся семья с одного устройства.</p>
     </article>
 
-    <article class="lp-feat">
+    <article class="lp-feat reveal d6">
       <div class="lp-feat-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="26" height="26">
           <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/>
@@ -128,8 +188,8 @@
   </section>
 
   <section class="lp-how">
-    <h2>Как это работает</h2>
-    <ol class="lp-steps">
+    <h2 class="reveal">Как это работает</h2>
+    <ol class="lp-steps reveal">
       <li>
         <span class="lp-step-num">1</span>
         <div>
@@ -156,7 +216,7 @@
     </ol>
   </section>
 
-  <section class="lp-final">
+  <section class="lp-final reveal">
     <h2>Заведите свою Самобранку</h2>
     <p class="muted">Соберите рецепты семьи в одну книгу — и перестаньте искать «ту самую» ссылку в переписке.</p>
     <a class="btn btn-primary btn-lg" href="/register">Начать бесплатно</a>
@@ -170,6 +230,28 @@
     <a href="https://t.me/{{ bot_username }}" target="_blank" rel="noopener">Telegram-бот @{{ bot_username }}</a>
   {% endif %}
 </footer>
+
+<script>
+// Плавное появление секций при попадании в вьюпорт.
+// Если пользователь просил «поменьше анимаций» — ничего не делаем, CSS уже
+// показал всё как есть.
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !('IntersectionObserver' in window)) {
+    document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('is-in'); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('is-in');
+        io.unobserve(e.target);
+      }
+    });
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+</script>
 
 </body>
 </html>

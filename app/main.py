@@ -17,7 +17,14 @@ from app.auth import (
     current_user, current_user_unlocked, optional_user, require_admin,
 )
 from app.categories import CATEGORIES, CATEGORY_BY_SLUG, category_color, category_title
-from app.config import MEDIA_DIR, PUBLIC_BASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME
+from app.config import (
+    GOOGLE_VERIFICATION,
+    MEDIA_DIR,
+    PUBLIC_BASE_URL,
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_BOT_USERNAME,
+    YANDEX_VERIFICATION,
+)
 from app.db import SessionLocal, get_session, init_db
 from app.models import User
 from app.parser.images import process_image_bytes
@@ -55,6 +62,9 @@ templates.env.globals.update(
     bot_enabled=bool(TELEGRAM_BOT_TOKEN),
     bot_username=TELEGRAM_BOT_USERNAME,
     asset_ver=_asset_ver(),
+    public_base_url=PUBLIC_BASE_URL,
+    yandex_verification=YANDEX_VERIFICATION,
+    google_verification=GOOGLE_VERIFICATION,
 )
 
 
@@ -141,6 +151,24 @@ async def _sliding_session(request: Request, call_next):
                 max_age=PIN_COOKIE_MAX_AGE, httponly=True, samesite="lax",
             )
 
+    return response
+
+
+# Приватные разделы не должны попадать в поисковый индекс, даже если куда-то
+# утекла прямая ссылка. robots.txt закрывает их для крауля, а этот заголовок —
+# страховка на случай, если бот всё же зашёл.
+_NOINDEX_PREFIXES = (
+    "/add", "/profile", "/admin", "/login", "/register", "/unlock",
+    "/feedback", "/logout", "/share", "/r/", "/api/",
+)
+
+
+@app.middleware("http")
+async def _noindex_private(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if any(path.startswith(p) for p in _NOINDEX_PREFIXES):
+        response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
     return response
 
 
@@ -796,6 +824,32 @@ self.addEventListener('fetch', event => {
 });
 """
     return Response(js, media_type="application/javascript")
+
+
+# ---------------------------------------------------------------- SEO
+
+@app.get("/robots.txt")
+def robots_txt():
+    lines = [
+        "User-agent: *",
+        "Allow: /$",
+        "Allow: /static/",
+    ]
+    lines += [f"Disallow: {p}" for p in _NOINDEX_PREFIXES]
+    lines += ["", f"Sitemap: {PUBLIC_BASE_URL}/sitemap.xml", ""]
+    return Response("\n".join(lines), media_type="text/plain; charset=utf-8")
+
+
+@app.get("/sitemap.xml")
+def sitemap_xml():
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f'  <url><loc>{PUBLIC_BASE_URL}/</loc>'
+        '<changefreq>weekly</changefreq><priority>1.0</priority></url>\n'
+        '</urlset>\n'
+    )
+    return Response(xml, media_type="application/xml; charset=utf-8")
 
 
 @app.get("/healthz")
